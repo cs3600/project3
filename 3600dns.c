@@ -137,7 +137,7 @@ void set_query(char **req, int *req_size) {
 	// update the packet size with query size
 	int query_size = sizeof(short) * BYTE_TO_BITS;
 	*req_size += query_size;
-	*req = (unsigned char *) realloc(*req, query_size);
+	*req = (unsigned char *) realloc(*req, *req_size);
 
 	// the query id
 	short id = (short) ID;
@@ -155,7 +155,28 @@ void set_flags(char **req, int *req_size) {
 	if (req_size == NULL) {
 		return;
 	}
-  // TODO
+
+	// update the packet size with the flag size
+	short flag_size = (short) FLAG_SIZE;
+	*req_size += flag_size;
+	*req = (unsigned char *) realloc(*req, *req_size);
+
+	// QR code is 0 (query, not a response)
+	// OPCODE is 0000 (standard query)
+	// AA is 0 (ignored)
+	// TC is 0 (not truncated)
+	// RD is 1 (recursion requested)
+	// RA is 0 (not meaningful for query)
+	// Z is 000 (reserved)
+	// RCODE is 0000 (not meaningful for query)
+	// Binary: 0000 0001 0000 0000
+	// Hex: 0100
+	// Decimal: 256
+	short flags = (short) FLAG_CODE;
+
+	// update the packet
+	(*req)[2] = (flags >> BYTE_TO_BITS) & 0xFF;
+	(*req)[3] = flags & 0xFF;
 }
 
 // Creates a dns request packet. Returns a malloced packet.
@@ -165,11 +186,12 @@ char *create_dns_request(char *name) {
 	// the request packet
 	unsigned char *req = NULL; 
 
+	// use only one set function for the defaults
 	// set query field
 	set_query(&req, &req_size);
 
 	// set the flags
-	//set_flags(&req, &req_size);
+	set_flags(&req, &req_size);
 
 	return req;
 }
