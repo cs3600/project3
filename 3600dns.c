@@ -88,12 +88,17 @@ request_options get_request_options(char *arg[]) {
 
 	// get the server and port
 	char *a1 = arg[1];
-	a1++; // get rid of leading @
+	// length of <@server:port>
 	int a1_size = strlen(a1);
+  // get rid of leading @
+	a1++;
+	// length of <server>
 	int server_len = a1_size;
+	// length of <port>
 	int port_len = 0;
+	// look for the : delimiter
 	for (int i = 0; i < a1_size; i++) {
-		// found the delim
+		// port option specified
 		if (a1[i] == ':') {
 			server_len = i;
     	port_len = a1_size - i;
@@ -101,40 +106,75 @@ request_options get_request_options(char *arg[]) {
 		}
 	}
 
-	// get the server 
+	// get the server; null term the last char
 	strncpy(opts.server, a1, server_len);
 	opts.server[server_len - 1] = '\0';
 
-	//get the port
+	//get the port if specified
 	if (port_len) {
-	  strncpy(opts.port, a1+server_len+1, port_len);
-	  opts.port[port_len - 1] = '\0';
+		char *port[port_len+1]; //+1 for '/0'
+	  strncpy(port, a1+server_len+1, port_len);
+	  opts.port = (short) atoi(port);
 	}
-	// no port specified, default is '53'
+	// no port specified, default is 53
 	else {
-	  strncpy(opts.port, "53", 3); // TODO make constant
+	  opts.port = PORT;
 	}
 
 	// get the name
 	opts.name = arg[2];
+
+	return opts;
 }
 
-// Creates a dns request packet.
-char *create_dns_request(request_options opts) {
-	char hex_id[4];
-	sprintf(hex_id, "%04x", ID);
-	printf("%s\n", hex_id);
+// Sets the query in the request packet. Updates req_size appropriately.
+void set_query(char **req, int *req_size) {
+  // size should be initialized
+	if (req_size == NULL) {
+		return;
+	}
 
+	// update the packet size with query size
+	int query_size = sizeof(short) * BYTE_TO_BITS;
+	*req_size += query_size;
+	*req = (unsigned char *) realloc(*req, query_size);
+
+	// the query id
+	short id = (short) ID;
+
+	// update the packet
+	(*req)[0] = (id >> BYTE_TO_BITS) & 0xFF;
+	(*req)[1] = id & 0xFF;
+}
+
+// Sets the flags in the request packet. 
+// Updates req_size appropriately.
+// QR, OPCODE,  AA, TC, RD, RA, Z, RCODE are set here.
+void set_flags(char **req, int *req_size) {
+  // size should be initialized
+	if (req_size == NULL) {
+		return;
+	}
+  // TODO
+}
+
+// Creates a dns request packet. Returns a malloced packet.
+char *create_dns_request(char *name) {
+	// number of bits in the packet
+	int req_size = 0;
+	// the request packet
+	unsigned char *req = NULL; 
+
+	// set query field
+	set_query(&req, &req_size);
+
+	// set the flags
+	//set_flags(&req, &req_size);
+
+	return req;
 }
 
 int main(int argc, char *argv[]) {
-  /**
-   * I've included some basic code for opening a socket in C, sending
-   * a UDP packet, and then receiving a response (or timeout).  You'll 
-   * need to fill in many of the details, but this should be enough to
-   * get you started.
-   */
-
   // ./3600dns @<server:port> <name>
   if (argc != 3) {
   	printf("Usage: ./3600dns @<server:port> <name>");
@@ -144,9 +184,9 @@ int main(int argc, char *argv[]) {
   request_options opts = get_request_options(argv);
 
   // construct the DNS request
-  char *packet = create_dns_request(opts);
-/*
-  // send the DNS request (and call dump_packet with your request)
+   unsigned char *packet = create_dns_request(opts.name);
+
+   dump_packet(packet, strlen(packet));
   
   // first, open a UDP socket  
   int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -154,9 +194,16 @@ int main(int argc, char *argv[]) {
   // next, construct the destination address
   struct sockaddr_in out;
   out.sin_family = AF_INET;
-  out.sin_port = htons();
-  out.sin_addr.s_addr = inet_addr(<<DNS server IP as char*>>);
+  out.sin_port = htons(opts.port);
+  out.sin_addr.s_addr = inet_addr(opts.server);
 
+  // My address
+  printf("My unreadable address is %u\n", out.sin_addr.s_addr); // TODO remove
+
+
+
+  // send the DNS request (and call dump_packet with your request)
+/*
   if (sendto(sock, <<your packet>>, <<packet len>>, 0, &out, sizeof(out)) < 0) {
     // an error occurred
   }

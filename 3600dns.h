@@ -8,6 +8,8 @@
 #ifndef __3600DNS_H__
 #define __3600DNS_H__
 #define ID 1337 // Default query id to use
+#define PORT 53 // Default udp port for DNS
+#define BYTE_TO_BITS 8 // The number of bits in a byte
 
 // Represents the requested server ip,
 // port number, and domain name in a
@@ -19,8 +21,7 @@ typedef struct request_options_t {
 	char server[16];
 	// the port number
 	// 2^16 ports
-	// 65535/0, 6 bits worst case
-	char port[6];
+	short port;
 	// the domain name
 	// technically could be infinitely long
 	char *name;
