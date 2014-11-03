@@ -127,71 +127,52 @@ request_options get_request_options(char *arg[]) {
 	return opts;
 }
 
-// Sets the query in the request packet. Updates req_size appropriately.
-void set_query(char **req, int *req_size) {
-  // size should be initialized
-	if (req_size == NULL) {
+// Sets the param in at given place in the given request packet. 
+// Updates the size of the request packet accordingly.
+void set_param(char **req, int *req_size, short param, int *place) {
+  // size and place should be initialized
+	if (req_size == NULL || place == NULL) {
 		return;
 	}
 
-	// update the packet size with query size
-	int query_size = sizeof(short) * BYTE_TO_BITS;
-	*req_size += query_size;
+	// update the packet size with the param size
+	int param_size = sizeof(param) * BYTE_TO_BITS;
+	*req_size += param_size;
 	*req = (unsigned char *) realloc(*req, *req_size);
 
-	// the query id
-	short id = (short) ID;
-
 	// update the packet
-	(*req)[0] = (id >> BYTE_TO_BITS) & 0xFF;
-	(*req)[1] = id & 0xFF;
-}
-
-// Sets the flags in the request packet. 
-// Updates req_size appropriately.
-// QR, OPCODE,  AA, TC, RD, RA, Z, RCODE are set here.
-void set_flags(char **req, int *req_size) {
-  // size should be initialized
-	if (req_size == NULL) {
-		return;
-	}
-
-	// update the packet size with the flag size
-	short flag_size = (short) FLAG_SIZE;
-	*req_size += flag_size;
-	*req = (unsigned char *) realloc(*req, *req_size);
-
-	// QR code is 0 (query, not a response)
-	// OPCODE is 0000 (standard query)
-	// AA is 0 (ignored)
-	// TC is 0 (not truncated)
-	// RD is 1 (recursion requested)
-	// RA is 0 (not meaningful for query)
-	// Z is 000 (reserved)
-	// RCODE is 0000 (not meaningful for query)
-	// Binary: 0000 0001 0000 0000
-	// Hex: 0100
-	// Decimal: 256
-	short flags = (short) FLAG_CODE;
-
-	// update the packet
-	(*req)[2] = (flags >> BYTE_TO_BITS) & 0xFF;
-	(*req)[3] = flags & 0xFF;
+	(*req)[(*place)++] = (param >> BYTE_TO_BITS) & 0xFF;
+	(*req)[(*place)++] = param & 0xFF;
 }
 
 // Creates a dns request packet. Returns a malloced packet.
-char *create_dns_request(char *name) {
-	// number of bits in the packet
-	int req_size = 0;
-	// the request packet
-	unsigned char *req = NULL; 
+char *create_dns_request(char *name, char **req, int *req_size) {
+	// the place we are at in the packet
+	int place = 0;
 
-	// use only one set function for the defaults
 	// set query field
-	set_query(&req, &req_size);
+	set_param(req, req_size, (short) ID, &place);
 
 	// set the flags
-	set_flags(&req, &req_size);
+	set_param(req, req_size, (short) FLAG_CODE, &place);
+
+	// set QDCOUNT
+	set_param(req, req_size, (short) QD_CODE, &place);
+
+	// set ANCOUNT
+	set_param(req, req_size, (short) AN_CODE, &place);
+
+	// set NSCOUNT
+	set_param(req, req_size, (short) NS_CODE, &place);
+
+	// set ARCOUNT
+	set_param(req, req_size, (short) AR_CODE, &place);
+
+	// set the question TODO
+	//set_question(req, req_size);
+
+	// update the size in hex
+	*req_size = *req_size / BYTE_TO_BITS;
 
 	return req;
 }
@@ -206,9 +187,11 @@ int main(int argc, char *argv[]) {
   request_options opts = get_request_options(argv);
 
   // construct the DNS request
-   unsigned char *packet = create_dns_request(opts.name);
+  int packet_len = 0;
+  unsigned char *packet = NULL;
+  create_dns_request(opts.name, &packet, &packet_len);
 
-   dump_packet(packet, strlen(packet));
+   dump_packet(packet, packet_len);
   
   // first, open a UDP socket  
   int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
