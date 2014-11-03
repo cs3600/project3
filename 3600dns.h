@@ -56,6 +56,20 @@
 // No additional records follow
 #define AR_CODE 0
 
+// Binary: 0001
+// Hex: 01
+// Decimal: 1
+// Default QTYPE code
+// Represents A records
+#define QTYPE_CODE 1
+
+// Binary: 0001
+// Hex: 01
+// Decimal: 1
+// Default QCLASS code
+// Represents Internet addresses
+#define QCLASS_CODE 1
+
 // Represents the requested server ip,
 // port number, and domain name in a
 // logical structure.

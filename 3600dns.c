@@ -127,7 +127,7 @@ request_options get_request_options(char *arg[]) {
 	return opts;
 }
 
-// Sets the param in at given place in the given request packet. 
+// Sets the given param in at given place in the given request packet. 
 // Updates the size of the request packet accordingly.
 void set_param(char **req, int *req_size, short param, int *place) {
   // size and place should be initialized
@@ -136,20 +136,93 @@ void set_param(char **req, int *req_size, short param, int *place) {
 	}
 
 	// update the packet size with the param size
-	int param_size = sizeof(param) * BYTE_TO_BITS;
+	int param_size = sizeof(param);
+	*req_size += param_size;
+	*req = (unsigned char *) realloc(*req, *req_size);
+
+	// update the packet
+	(*req)[(*place)++] = (param >> BYTE_TO_BITS) & 0xFF; // can be *req_size - param_size--
+	(*req)[(*place)++] = param & 0xFF; //TODO can be *req_size - param_size
+}
+
+// Sets the given octet in at given place in the given request packet. 
+// Updates the size of the request packet accordingly.
+void set_octet(char **req, int *req_size, unsigned char octet, int *place) {
+  // size and place should be initialized
+	if (req_size == NULL || place == NULL) {
+		return;
+	}
+
+	// update the packet size with the octet size
+	int octet_size = sizeof(octet);
+	*req_size += octet_size;
+	*req = (unsigned char *) realloc(*req, *req_size);
+
+	// update the packet
+	(*req)[(*place)++] = octet & 0xFF; //TODO can be *req_size - octet_size
+}
+
+// Sets the question portion of the query at the given place in the
+// given request packet. Updates the size of the request packet
+// accordingly.
+void set_question(char **req, int *req_size, char *name, int *place) {
+  // size and place should be initialized
+	if (req_size == NULL || place == NULL) {
+		return;
+	}
+
+  // TODO we need to set the qname; abstract to function later
+	//get each . delimited token and add each token's length
+	// followed by the token to the packet.
+	int name_len = strlen(name) + 1;
+	int token_start_idx = 0;
+	int token_end_idx = 0;
+	int token_len = 0;
+  for (int i = 0; i < name_len; i++) {
+  	// we hit the end of a token
+  	// add its length to the packet
+  	if (name[i] == '.' || name[i] == '\0') {
+      set_octet(req, req_size, (unsigned char) token_len, place);
+      token_end_idx = token_start_idx + token_len;
+      // add each octet (char/byte) from the token
+      for (int j = token_start_idx; j < token_end_idx; j++) {
+      	set_octet(req, req_size, (unsigned char) name[j], place);
+			}
+			// update the start index of to the next token
+			token_start_idx = token_end_idx + 1;
+			// on to the next token
+  		token_len = 0;
+  		continue;
+		}
+		token_len++;
+	}
+	// mark the end of the question
+	set_octet(req, req_size, (unsigned char) 0, place);
+
+	// set QTYPE
+	set_param(req, req_size, (short) QTYPE_CODE, place);
+
+	// set QCLASS
+	set_param(req, req_size, (short) QCLASS_CODE, place);
+/*
+	// update the packet size with the param size
+	int param_size = sizeof(param);
 	*req_size += param_size;
 	*req = (unsigned char *) realloc(*req, *req_size);
 
 	// update the packet
 	(*req)[(*place)++] = (param >> BYTE_TO_BITS) & 0xFF;
 	(*req)[(*place)++] = param & 0xFF;
+	*/
 }
 
 // Creates a dns request packet. Returns a malloced packet.
 char *create_dns_request(char *name, char **req, int *req_size) {
 	// the place we are at in the packet
-	int place = 0;
+	int place = 0; // TODO we don't need this
 
+	// TODO lump the first param setting in a function called
+	// set_header
 	// set query field
 	set_param(req, req_size, (short) ID, &place);
 
@@ -169,10 +242,7 @@ char *create_dns_request(char *name, char **req, int *req_size) {
 	set_param(req, req_size, (short) AR_CODE, &place);
 
 	// set the question TODO
-	//set_question(req, req_size);
-
-	// update the size in hex
-	*req_size = *req_size / BYTE_TO_BITS;
+	set_question(req, req_size, name, &place);
 
 	return req;
 }
