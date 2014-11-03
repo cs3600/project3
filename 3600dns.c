@@ -127,9 +127,9 @@ request_options get_request_options(char *arg[]) {
 // Sets the given param in the given request packet. 
 // Updates the size of the request packet accordingly.
 void set_param(unsigned char **req, int *req_size, short param) {
-  // size should be initialized
-	if (req_size == NULL) {
-		return;
+  // NULL checks
+	if (req == NULL || req_size == NULL) {
+		return; // TODO return error codes
 	}
 	// update the packet size with the param size
 	int param_size = sizeof(param);
@@ -143,9 +143,9 @@ void set_param(unsigned char **req, int *req_size, short param) {
 // Sets the given octet in at given place in the given request packet. 
 // Updates the size of the request packet accordingly.
 void set_octet(unsigned char **req, int *req_size, unsigned char octet) {
-  // size should be initialized
-	if (req_size == NULL) {
-		return;
+  // NULL checks
+	if (req == NULL || req_size == NULL) {
+		return; // TODO return error codes
 	}
 	// update the packet size with the octet size
 	int octet_size = sizeof(octet);
@@ -155,15 +155,13 @@ void set_octet(unsigned char **req, int *req_size, unsigned char octet) {
 	(*req)[*req_size - octet_size] = octet & 0xFF;
 }
 
-// Sets the question portion of the query in the given request packet.
+// Sets the QNAME of the question in the given request packet.
 // Updates the size of the request packet accordingly.
-void set_question(unsigned char **req, int *req_size, char *name) {
-  // size should be initialized
-	if (req_size == NULL) {
-		return;
+void set_qname(unsigned char **req, int *req_size, char *name) {
+  // NULL checks
+	if (req == NULL || req_size == NULL || name == NULL) {
+		return; // TODO return error codes
 	}
-
-  // TODO we need to set the qname; abstract to function later
 	//get each . delimited token and add each token's length
 	// followed by the token to the packet.
 	int name_len = strlen(name) + 1;
@@ -190,37 +188,59 @@ void set_question(unsigned char **req, int *req_size, char *name) {
 	}
 	// mark the end of the question
 	set_octet(req, req_size, (unsigned char) 0);
+}
 
+// Sets the question in the given request packet.
+// Updates the size of the request packet accordingly.
+void set_question(unsigned char **req, int *req_size, char *name) {
+  // NULL checks
+	if (req == NULL || req_size == NULL || name == NULL) {
+		return; // TODO return error codes
+	}
+	// set QNAME
+	set_qname(req, req_size, name);
 	// set QTYPE
 	set_param(req, req_size, (short) QTYPE_CODE);
-
 	// set QCLASS
 	set_param(req, req_size, (short) QCLASS_CODE);
 }
 
-// Creates a dns request packet. Returns a malloced packet.
-void create_dns_request(char *name, unsigned char **req, int *req_size) {
-	// TODO lump the first param setting in a function called
-	// set_header
-	// set query field
+// Sets the header in the given request packet.
+// The param req should be a pointer to a NULL pointer.
+// The param req_size must be an int pointer to 0.
+// Updates the size of the request packet accordingly.
+void set_header(unsigned char **req, int *req_size) {
+	// only null pointers allowed so *req ends up being a newly malloced string. 
+	if (req == NULL || *req != NULL || req_size == NULL || *req_size != 0) {
+		return; // TODO return error codes
+	}
+
+	// set ID
 	set_param(req, req_size, (short) ID);
-
-	// set the flags
+	// set flags
 	set_param(req, req_size, (short) FLAG_CODE);
-
 	// set QDCOUNT
 	set_param(req, req_size, (short) QD_CODE);
-
 	// set ANCOUNT
 	set_param(req, req_size, (short) AN_CODE);
-
 	// set NSCOUNT
 	set_param(req, req_size, (short) NS_CODE);
-
 	// set ARCOUNT
 	set_param(req, req_size, (short) AR_CODE);
+}
 
-	// set the question TODO
+// Creates a dns request packet. The param req should be a pointer to
+// a NULL pointer. The param req_size must be an int pointer to 0.
+// The param *req will contain the packet of size *req_size.
+void create_dns_request(char *name, unsigned char **req, int *req_size) {
+	// only null pointers allowed so *req ends up being a newly malloced string. 
+	if (*req != NULL || req_size == NULL || *req_size != 0) {
+		return; // TODO return error codes
+	}
+
+	// set the DNS header
+	set_header(req, req_size);
+	// set the DNS question
 	set_question(req, req_size, name);
 }
 
@@ -238,8 +258,11 @@ int main(int argc, char *argv[]) {
   unsigned char *packet = NULL;
   create_dns_request(opts.name, &packet, &packet_len);
 
-   dump_packet(packet, packet_len);
+	// Display packet contents
+  dump_packet(packet, packet_len);
   
+	// TODO 
+	/*
   // first, open a UDP socket  
   int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 
@@ -250,7 +273,6 @@ int main(int argc, char *argv[]) {
   out.sin_addr.s_addr = inet_addr(opts.server);
 
   // send the DNS request (and call dump_packet with your request)
-/*
   if (sendto(sock, <<your packet>>, <<packet len>>, 0, &out, sizeof(out)) < 0) {
     // an error occurred
   }

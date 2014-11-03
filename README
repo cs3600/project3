@@ -6,17 +6,36 @@ We check if there are exactly the right amount of command line arguments.
 Next, we extract the options specified from the command line and bundle them
 in a structure.
 
-From here we construct a packet.
+From here we construct a packet using the name specified in the command line.
+
+We break up construction of the packet into logical parts. We set the header
+and then we set the question.
+
+When setting the header, we add each of the 5 16-bit fields.
+
+When setting the question, we add the QNAME, and then the two remaining 16-bit
+fields. The adding of the QNAME is broken off into its own logical component.
+In constructing the QNAME we get the length of each space delimited token and
+add that to the packet followed by the respective token. Finally when we
+encounter the end of the name (which also marks the end of the last token)
+we add the final token and add the end of QNAME octet.
+
+We add the server IP and port (if specified) to our destination address.
 
 ******************************************************************************
 Challenges
 ******************************************************************************
 Understanding the format of a packet and constructing it.
 
+Following pointers in compressed response packets.
+
 ******************************************************************************
 Features / Properties
 ******************************************************************************
+Good abstraction and code reusability.
 
 ******************************************************************************
 Tests
 ******************************************************************************
+Use a bash script for quick debugging options and quick comparisons between
+the solution dir and our solution.
