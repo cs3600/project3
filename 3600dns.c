@@ -84,8 +84,8 @@ static void dump_packet(unsigned char *data, int size) {
 // Get the request options.
 // ./3600dns @<server:port> <name>
 request_options get_request_options(char *arg[]) {
+	// the request options to return
 	request_options opts;
-
 	// get the server and port
 	char *a1 = arg[1];
 	// length of <@server:port>
@@ -105,14 +105,12 @@ request_options get_request_options(char *arg[]) {
 			break;
 		}
 	}
-
 	// get the server; null term the last char
 	strncpy(opts.server, a1, server_len);
 	opts.server[server_len - 1] = '\0';
-
 	//get the port if specified
 	if (port_len) {
-		char *port[port_len+1]; //+1 for '/0'
+		char port[port_len+1]; //+1 for '/0'
 	  strncpy(port, a1+server_len+1, port_len);
 	  opts.port = (short) atoi(port);
 	}
@@ -120,54 +118,48 @@ request_options get_request_options(char *arg[]) {
 	else {
 	  opts.port = PORT;
 	}
-
 	// get the name
 	opts.name = arg[2];
-
+	// return the options
 	return opts;
 }
 
-// Sets the given param in at given place in the given request packet. 
+// Sets the given param in the given request packet. 
 // Updates the size of the request packet accordingly.
-void set_param(char **req, int *req_size, short param, int *place) {
-  // size and place should be initialized
-	if (req_size == NULL || place == NULL) {
+void set_param(unsigned char **req, int *req_size, short param) {
+  // size should be initialized
+	if (req_size == NULL) {
 		return;
 	}
-
 	// update the packet size with the param size
 	int param_size = sizeof(param);
 	*req_size += param_size;
 	*req = (unsigned char *) realloc(*req, *req_size);
-
 	// update the packet
-	(*req)[(*place)++] = (param >> BYTE_TO_BITS) & 0xFF; // can be *req_size - param_size--
-	(*req)[(*place)++] = param & 0xFF; //TODO can be *req_size - param_size
+	(*req)[*req_size - param_size--] = (param >> BYTE_TO_BITS) & 0xFF;
+	(*req)[*req_size - param_size] = param & 0xFF;
 }
 
 // Sets the given octet in at given place in the given request packet. 
 // Updates the size of the request packet accordingly.
-void set_octet(char **req, int *req_size, unsigned char octet, int *place) {
-  // size and place should be initialized
-	if (req_size == NULL || place == NULL) {
+void set_octet(unsigned char **req, int *req_size, unsigned char octet) {
+  // size should be initialized
+	if (req_size == NULL) {
 		return;
 	}
-
 	// update the packet size with the octet size
 	int octet_size = sizeof(octet);
 	*req_size += octet_size;
 	*req = (unsigned char *) realloc(*req, *req_size);
-
 	// update the packet
-	(*req)[(*place)++] = octet & 0xFF; //TODO can be *req_size - octet_size
+	(*req)[*req_size - octet_size] = octet & 0xFF;
 }
 
-// Sets the question portion of the query at the given place in the
-// given request packet. Updates the size of the request packet
-// accordingly.
-void set_question(char **req, int *req_size, char *name, int *place) {
-  // size and place should be initialized
-	if (req_size == NULL || place == NULL) {
+// Sets the question portion of the query in the given request packet.
+// Updates the size of the request packet accordingly.
+void set_question(unsigned char **req, int *req_size, char *name) {
+  // size should be initialized
+	if (req_size == NULL) {
 		return;
 	}
 
@@ -182,11 +174,11 @@ void set_question(char **req, int *req_size, char *name, int *place) {
   	// we hit the end of a token
   	// add its length to the packet
   	if (name[i] == '.' || name[i] == '\0') {
-      set_octet(req, req_size, (unsigned char) token_len, place);
+      set_octet(req, req_size, (unsigned char) token_len);
       token_end_idx = token_start_idx + token_len;
       // add each octet (char/byte) from the token
       for (int j = token_start_idx; j < token_end_idx; j++) {
-      	set_octet(req, req_size, (unsigned char) name[j], place);
+      	set_octet(req, req_size, (unsigned char) name[j]);
 			}
 			// update the start index of to the next token
 			token_start_idx = token_end_idx + 1;
@@ -197,54 +189,39 @@ void set_question(char **req, int *req_size, char *name, int *place) {
 		token_len++;
 	}
 	// mark the end of the question
-	set_octet(req, req_size, (unsigned char) 0, place);
+	set_octet(req, req_size, (unsigned char) 0);
 
 	// set QTYPE
-	set_param(req, req_size, (short) QTYPE_CODE, place);
+	set_param(req, req_size, (short) QTYPE_CODE);
 
 	// set QCLASS
-	set_param(req, req_size, (short) QCLASS_CODE, place);
-/*
-	// update the packet size with the param size
-	int param_size = sizeof(param);
-	*req_size += param_size;
-	*req = (unsigned char *) realloc(*req, *req_size);
-
-	// update the packet
-	(*req)[(*place)++] = (param >> BYTE_TO_BITS) & 0xFF;
-	(*req)[(*place)++] = param & 0xFF;
-	*/
+	set_param(req, req_size, (short) QCLASS_CODE);
 }
 
 // Creates a dns request packet. Returns a malloced packet.
-char *create_dns_request(char *name, char **req, int *req_size) {
-	// the place we are at in the packet
-	int place = 0; // TODO we don't need this
-
+void create_dns_request(char *name, unsigned char **req, int *req_size) {
 	// TODO lump the first param setting in a function called
 	// set_header
 	// set query field
-	set_param(req, req_size, (short) ID, &place);
+	set_param(req, req_size, (short) ID);
 
 	// set the flags
-	set_param(req, req_size, (short) FLAG_CODE, &place);
+	set_param(req, req_size, (short) FLAG_CODE);
 
 	// set QDCOUNT
-	set_param(req, req_size, (short) QD_CODE, &place);
+	set_param(req, req_size, (short) QD_CODE);
 
 	// set ANCOUNT
-	set_param(req, req_size, (short) AN_CODE, &place);
+	set_param(req, req_size, (short) AN_CODE);
 
 	// set NSCOUNT
-	set_param(req, req_size, (short) NS_CODE, &place);
+	set_param(req, req_size, (short) NS_CODE);
 
 	// set ARCOUNT
-	set_param(req, req_size, (short) AR_CODE, &place);
+	set_param(req, req_size, (short) AR_CODE);
 
 	// set the question TODO
-	set_question(req, req_size, name, &place);
-
-	return req;
+	set_question(req, req_size, name);
 }
 
 int main(int argc, char *argv[]) {
@@ -271,11 +248,6 @@ int main(int argc, char *argv[]) {
   out.sin_family = AF_INET;
   out.sin_port = htons(opts.port);
   out.sin_addr.s_addr = inet_addr(opts.server);
-
-  // My address
-  printf("My unreadable address is %u\n", out.sin_addr.s_addr); // TODO remove
-
-
 
   // send the DNS request (and call dump_packet with your request)
 /*
