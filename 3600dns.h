@@ -70,6 +70,9 @@
 // Represents Internet addresses
 #define QCLASS_CODE 1
 
+// Maximum response size
+#define MAX_RESPONSE_SIZE 65536
+
 // Represents the requested server ip,
 // port number, and domain name in a
 // logical structure.

@@ -261,8 +261,6 @@ int main(int argc, char *argv[]) {
 	// Display packet contents
   dump_packet(packet, packet_len);
   
-	// TODO 
-	/*
   // first, open a UDP socket  
   int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 
@@ -273,8 +271,9 @@ int main(int argc, char *argv[]) {
   out.sin_addr.s_addr = inet_addr(opts.server);
 
   // send the DNS request (and call dump_packet with your request)
-  if (sendto(sock, <<your packet>>, <<packet len>>, 0, &out, sizeof(out)) < 0) {
+  if (sendto(sock, packet, packet_len, 0, &out, sizeof(out)) < 0) {
     // an error occurred
+    return -1; // TODO CONFIRM THIS BEHAVIOR
   }
 
   // wait for the DNS reply (timeout: 5 seconds)
@@ -288,19 +287,21 @@ int main(int argc, char *argv[]) {
 
   // construct the timeout
   struct timeval t;
-  t.tv_sec = <<your timeout in seconds>>;
+  t.tv_sec = 5;
   t.tv_usec = 0;
 
   // wait to receive, or for a timeout
+  char response[MAX_RESPONSE_SIZE];
   if (select(sock + 1, &socks, NULL, NULL, &t)) {
-    if (recvfrom(sock, <<your input buffer>>, <<input len>>, 0, &in, &in_len) < 0) {
-      // an error occured
+    if (recvfrom(sock, response, MAX_RESPONSE_SIZE, 0, &in, &in_len) < 0) {
+      // an error occurred
+      return -3; // TODO confirm this behavior
     }
   } else {
     // a timeout occurred
+    return -2; // TODO confirm this behavior
   }
 
-  // print out the result
-*/
+  // print out the result TODO
   return 0;
 }
