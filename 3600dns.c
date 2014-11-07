@@ -159,7 +159,7 @@ void set_octet(unsigned char **req, int *req_size, unsigned char octet) {
 // Updates the size of the request packet accordingly.
 void set_qname(unsigned char **req, int *req_size, char *name) {
   // NULL checks
-	if (req == NULL || req_size == NULL || name == NULL) {
+	if (req == NULL || *req == NULL || req_size == NULL || *req_size == 0 || name == NULL) {
 		return; // TODO return error codes
 	}
 	//get each . delimited token and add each token's length
@@ -194,7 +194,7 @@ void set_qname(unsigned char **req, int *req_size, char *name) {
 // Updates the size of the request packet accordingly.
 void set_question(unsigned char **req, int *req_size, char *name) {
   // NULL checks
-	if (req == NULL || req_size == NULL || name == NULL) {
+	if (req == NULL || *req == NULL || req_size == NULL || *req_size == 0 || name == NULL) {
 		return; // TODO return error codes
 	}
 	// set QNAME
@@ -229,12 +229,14 @@ void set_header(unsigned char **req, int *req_size) {
 	set_param(req, req_size, (short) AR_CODE);
 }
 
-// Creates a dns request packet. The param req should be a pointer to
-// a NULL pointer. The param req_size must be an int pointer to 0.
+// Creates a dns request packet. 
+// The param req should be a pointer to a NULL pointer.
+// The param req_size must be an int pointer to 0.
+// The param name is the QNAME of the packet.
 // The param *req will contain the packet of size *req_size.
 void create_dns_request(char *name, unsigned char **req, int *req_size) {
 	// only null pointers allowed so *req ends up being a newly malloced string. 
-	if (*req != NULL || req_size == NULL || *req_size != 0) {
+	if (req == NULL || *req != NULL || req_size == NULL || *req_size != 0) {
 		return; // TODO return error codes
 	}
 
@@ -242,6 +244,83 @@ void create_dns_request(char *name, unsigned char **req, int *req_size) {
 	set_header(req, req_size);
 	// set the DNS question
 	set_question(req, req_size, name);
+}
+
+// Gets the next param in the given response packet. 
+// A param is two bytes/octets.
+short get_param(unsigned char *res, int *res_i) { // TODO update comments about res_i
+  // NULL checks
+	if (res == NULL || *res == NULL) {
+		return; // TODO return error codes
+	}
+	// initialize the param to 0
+	short param = 0;
+	// update the param and packet pointer
+	char *packet = *res;
+	param = res[(*res_i)++];
+	param <<= BYTE_TO_BITS;
+	param |= res[(*res_i)++];
+	return param;
+}
+
+// Gets the header in the given response packet.
+// The param res should be a pointer to a start of a response packet.
+// Returns the ANCOUNT of the packet on success; else returns an error
+// code.
+// return >= 0, ANCOUNT
+// return = -1, invalid args to the function
+// return = -2, invalid query id in the received packet
+int check_header(unsigned char *res, int *res_i) {
+	// check that we have a valid pointer to a non-null pointer.
+	if (res == NULL || *res == NULL) {
+		return -1; // invalid args
+	}
+	// get ID
+	short id = get_param(res, res_i);
+	// check that we received the right packet
+	if (id != ID) {
+		return -2; // invalid query ID
+	}
+	// get flags
+	short flags = get_param(res, res_i);
+	// check the flags
+	// TODO
+	// get QDCOUNT TODO do we care to check this?
+	short qdcount = get_param(res, res_i);
+	// get ANCOUNT
+	short ancount = get_param(res, res_i);
+	// get NSCOUNT TODO do we care to check this?
+	short nscount = get_param(res, res_i);
+	// get ARCOUNT TODO do we care to check this?
+	short arcount = get_param(res, res_i);
+
+	return ancount;
+}
+
+// Deconstructs and intreprets a dns response packet.
+// The param res should be a pointer to a response packet.
+// The param decomp should be a pointer to a NULL pointer.
+// The param decomp_len must be an int pointer to 0.
+// The param *decomp will contain the response packet's interpretation 
+// and will have length *decomp_len.
+// TODO we should pass in an accurate response packet length, otherwise we are making
+// an assumption that the packet *res is well-formed, which is not safe.
+void read_dns_response(unsigned char **decomp, int  *decomp_len, unsigned char *res) {
+	// valid input checks
+	if (res == NULL || *res == NULL || decomp == NULL || *decomp != NULL ||
+			decomp_len == NULL || *decomp_len != 0) {
+		return; // TODO return error code
+	}
+
+	// the index into the response array that we are currently looking at
+	int res_i = 0;
+	// check the DNS header; its invalid if return is < 0
+	if (check_header(res, &res_i) < 0) {
+		return; // TODO return error code
+	}
+
+	// get the DNS answer
+	// get_answer() TODO
 }
 
 int main(int argc, char *argv[]) {
@@ -291,9 +370,10 @@ int main(int argc, char *argv[]) {
   t.tv_usec = 0;
 
   // wait to receive, or for a timeout
-  char response[MAX_RESPONSE_SIZE];
+  int response_size = MAX_RESPONSE_SIZE;
+  unsigned char response[MAX_RESPONSE_SIZE];
   if (select(sock + 1, &socks, NULL, NULL, &t)) {
-    if (recvfrom(sock, response, MAX_RESPONSE_SIZE, 0, &in, &in_len) < 0) {
+    if (recvfrom(sock, response, response_size, 0, &in, &in_len) < 0) {
       // an error occurred
       return -3; // TODO confirm this behavior
     }
@@ -301,6 +381,11 @@ int main(int argc, char *argv[]) {
     // a timeout occurred
     return -2; // TODO confirm this behavior
   }
+
+	// a deconstruction of the packet
+	int decomp_len = 0;
+	unsigned char *decomp = NULL;
+  read_dns_response(&decomp, &decomp_len, response);
 
   // print out the result TODO
   return 0;
