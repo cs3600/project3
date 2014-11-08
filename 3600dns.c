@@ -248,13 +248,15 @@ void create_dns_request(char *name, unsigned char **req, int *req_size) {
 
 // Gets the next param in the given response packet. 
 // A param is two bytes/octets.
-short get_param(unsigned char *res, int *res_i) { // TODO update comments about res_i
+unsigned short get_param(unsigned char *res, int *res_i) {
+	// TODO update comments about res_i
+	// we need to also check the size of param for out of bounds
   // NULL checks
 	if (res == NULL || *res == NULL) {
 		return; // TODO return error codes
 	}
 	// initialize the param to 0
-	short param = 0;
+	unsigned short param = 0;
 	// update the param and packet pointer
 	char *packet = *res;
 	param = res[(*res_i)++];
@@ -276,23 +278,23 @@ int check_header(unsigned char *res, int *res_i) {
 		return -1; // invalid args
 	}
 	// get ID
-	short id = get_param(res, res_i);
+	unsigned short id = get_param(res, res_i);
 	// check that we received the right packet
 	if (id != ID) {
 		return -2; // invalid query ID
 	}
 	// get flags
-	short flags = get_param(res, res_i);
+	unsigned short flags = get_param(res, res_i);
 	// check the flags
 	// TODO
 	// get QDCOUNT TODO do we care to check this?
-	short qdcount = get_param(res, res_i);
+	unsigned short qdcount = get_param(res, res_i);
 	// get ANCOUNT
-	short ancount = get_param(res, res_i);
+	unsigned short ancount = get_param(res, res_i);
 	// get NSCOUNT TODO do we care to check this?
-	short nscount = get_param(res, res_i);
+	unsigned short nscount = get_param(res, res_i);
 	// get ARCOUNT TODO do we care to check this?
-	short arcount = get_param(res, res_i);
+	unsigned short arcount = get_param(res, res_i);
 
 	return ancount;
 }
@@ -386,6 +388,11 @@ int main(int argc, char *argv[]) {
 	int decomp_len = 0;
 	unsigned char *decomp = NULL;
   read_dns_response(&decomp, &decomp_len, response);
+
+  // print the result if we have it
+  if (decomp) {
+    printf("%s\n", decomp);
+	}
 
   // print out the result TODO
   return 0;
