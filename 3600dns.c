@@ -285,7 +285,7 @@ int check_header(unsigned char *res, int *res_i) {
 	short flags = get_param(res, res_i);
 	// Get the rcode
   short rcode = check_response_code(flags);  
-	// TODO: Check the RD CODE
+	//  Check the RD CODE
   if (rcode != 0) {
     exit(0);
   }
@@ -320,11 +320,11 @@ short check_response_code(short flags) {
     return rcode;
   }
   else if (rcode == 1) {
-    printf("Format Error\n");
+    printf("ERROR \t RCODE - Format Error\n");
     return rcode;
   }
   else if (rcode == 2) {
-    printf("ERROR: RCODE - Server Failure\n");
+    printf("ERROR \t RCODE - Server Failure\n");
     return rcode;
   }
   else if (rcode == 3) {
@@ -332,11 +332,11 @@ short check_response_code(short flags) {
     return rcode;
   }
   else if (rcode == 4) {
-    printf("ERROR: RCODE - Not Implemented\n");
+    printf("ERROR \t RCODE - Not Implemented\n");
     return rcode;
   }
   else if (rcode == 5) {
-    printf("ERROR: RCODE - Refused\n");
+    printf("ERROR \t RCODE - Refused\n");
     return rcode;
   }
   else {
@@ -345,6 +345,11 @@ short check_response_code(short flags) {
   }
 }
 
+// Given a response and an index into the response
+// Get the answer and print it out
+void get_answer(unsigned char *res, int *res_i) {
+  return;
+}
 // Deconstructs and intreprets a dns response packet.
 // The param res should be a pointer to a response packet.
 // The param decomp should be a pointer to a NULL pointer.
@@ -370,10 +375,13 @@ void read_dns_response(unsigned char **decomp, int  *decomp_len, unsigned char *
 		return; // TODO return error code
 	}
 
-  // TODO Get the RCODE
-  // TODO Get to the start of the first answer
-  // get the DNS answer
-	// get_answer() TODO
+  //TODO Get to the beggining of the answers
+
+
+  // Capture all of the answers...
+  for (int i = 0; i < num_answers; i++) {
+    get_answer(res, &res_i);
+  }
 }
 
 int main(int argc, char *argv[]) {
@@ -432,6 +440,7 @@ int main(int argc, char *argv[]) {
     }
   } else {
     // a timeout occurred
+    printf("NORESPONSE\n");
     return -2; // TODO confirm this behavior
   }
 
