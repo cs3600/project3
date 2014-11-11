@@ -283,8 +283,13 @@ int check_header(unsigned char *res, int *res_i) {
 	}
 	// get flags
 	short flags = get_param(res, res_i);
-	// check the flags
-	// TODO
+	// Get the rcode
+  short rcode = check_response_code(flags);  
+	// TODO: Check the RD CODE
+  if (rcode != 0) {
+    exit(0);
+  }
+
 	// get QDCOUNT TODO do we care to check this?
 	short qdcount = get_param(res, res_i);
 	// get ANCOUNT
@@ -295,6 +300,49 @@ int check_header(unsigned char *res, int *res_i) {
 	short arcount = get_param(res, res_i);
 
 	return ancount;
+}
+
+// Receives the flags from a response and checks the RCODE
+// Possible RCODE values:
+//   0  -> No error condition
+//   1  -> Format error (name serve unable to interpret query)
+//   2  -> Server failure (name server unable to process, name server error)
+//   3  -> Name error (domain name reference in query does not exist)
+//   4  -> Not Implemented (name server does not support requested query type)
+//   5  -> Refused (name server refuses op, policy reasons)
+short check_response_code(short flags) {
+  // Capture the RCDOE (last 4 bits of flags)
+  short rcode = flags & 0x0f;
+ 
+  // Handle all of the possible values
+  if (rcode == 0) {
+    // 0 means no error, return
+    return rcode;
+  }
+  else if (rcode == 1) {
+    printf("Format Error\n");
+    return rcode;
+  }
+  else if (rcode == 2) {
+    printf("ERROR: RCODE - Server Failure\n");
+    return rcode;
+  }
+  else if (rcode == 3) {
+    printf("NOTFOUND\n");
+    return rcode;
+  }
+  else if (rcode == 4) {
+    printf("ERROR: RCODE - Not Implemented\n");
+    return rcode;
+  }
+  else if (rcode == 5) {
+    printf("ERROR: RCODE - Refused\n");
+    return rcode;
+  }
+  else {
+    printf("ERROR: ********** RCODE FUCKED ***********\n");
+    return (short)6;
+  }
 }
 
 // Deconstructs and intreprets a dns response packet.
@@ -314,12 +362,17 @@ void read_dns_response(unsigned char **decomp, int  *decomp_len, unsigned char *
 
 	// the index into the response array that we are currently looking at
 	int res_i = 0;
+  // check_header will return the number of answers if no errors
+  // otherwise it will return a negative number on error
+  int num_answers = 0;
 	// check the DNS header; its invalid if return is < 0
-	if (check_header(res, &res_i) < 0) {
+	if (num_answers = check_header(res, &res_i) < 0) {
 		return; // TODO return error code
 	}
 
-	// get the DNS answer
+  // TODO Get the RCODE
+  // TODO Get to the start of the first answer
+  // get the DNS answer
 	// get_answer() TODO
 }
 

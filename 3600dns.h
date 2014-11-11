@@ -89,5 +89,7 @@ typedef struct request_options_t {
 	char *name;
 } request_options;
 
+// Returns the Rcode from a given response flag grouping
+short check_response_code(short flags);
 #endif
 
