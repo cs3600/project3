@@ -273,25 +273,26 @@ unsigned short get_param(unsigned char *res, int *res_i) {
 // return -1, TC
 // return -2, !RA
 // return -3, rcode error
-int check_flags(unsigned short flags) {
-	// TODO get rid of params we do not need to check
-	unsigned char qr = (flags >> 15) & 0x01;
-	unsigned char opcode = (flags >> 11) & 0x0f;
-	unsigned char aa = (flags >> 10) & 0x01;
+int check_flags(unsigned short flags, unsigned int *aa) {
+	// authoritative response
+	*aa = (flags >> 10) & 0x01;
+	// truncated
 	unsigned char tc = (flags >> 9) & 0x01;
-	unsigned char rd = (flags >> 8) & 0x01;
+	// recursion available
 	unsigned char ra = (flags >> 7) & 0x01;
-	unsigned char z = (flags >> 4) & 0x07;
+	// response code
   unsigned char rcode = flags & 0x0f;
-	// Need to check TD TODO print error?
+	// need to check TD
 	if (tc) {
+		printf("TRUNCATED\n");
 		return -1; 
 	}
-	// Need to check !RA TODO print error?
+	// need to check !RA
 	if (ra == 0) {
+		printf("RECURSION NOT AVAILABLE\n");
 		return -2;
 	}
-	//  Check the RCODE
+	// check the RCODE
   if (rcode != 0) {
   	print_error_code(rcode, aa);
     return -3;
@@ -307,10 +308,10 @@ int check_flags(unsigned short flags) {
 // return = -1, invalid args to the function
 // return = -2, invalid query id in the received packet
 // return = -3, invalid flags (TC or !RA) or rcode error
-int check_header(unsigned char *res, size_t res_len, int *res_i) {
+int check_header(unsigned char *res, size_t res_len, int *res_i, unsigned int *aa) {
 	// check input; make sure the incoming packet had enough
 	// bits to contain a header (6 sections of 2 bytes each)
-	if (res == NULL || res_i < (6 * 2)) {
+	if (res == NULL || *res_i != 0) {
 		return -1; // invalid args
 	}
 	// get ID
@@ -322,7 +323,7 @@ int check_header(unsigned char *res, size_t res_len, int *res_i) {
 	// get flags
 	unsigned short flags = get_param(res, res_i);
 	// check the flags
-	if (check_flags(flags) < 0) {
+	if (check_flags(flags, aa) < 0) {
 		return -3;
 	}
 
@@ -338,7 +339,7 @@ int check_header(unsigned char *res, size_t res_len, int *res_i) {
 	return ancount;
 }
 
-// Checks RCODE from the flags param. TODO auth non auth
+// Checks RCODE from the flags param. TODO do we need AA?
 // Possible RCODE values:
 //   0  -> No error condition
 //   1  -> Format error (name serve unable to interpret query)
@@ -427,8 +428,8 @@ void walk_name(unsigned char *res, int *res_i) {
 }
 
 // Given a response and an index into the response
-// Get the answer and print it out
-void get_answer(unsigned char *res, int *res_i) {
+// Get the answer and print it out TODO comment on aa
+void get_answer(unsigned char *res, int *res_i, unsigned int aa) {
 
   // Walk over the name to the type segement
   walk_name(res, res_i); 
@@ -446,13 +447,13 @@ void get_answer(unsigned char *res, int *res_i) {
   if (type == 1) {
     // We should be at the beginning of RDATA
     // We should only be reading the 4 octets
-    get_ip(res, res_i);
+    get_ip(res, res_i, aa);
   }
   // CNAME -> read it
   // TODO Recycle the code from the top to actually get the name
   else if (type == 5) {
     // We should be reading the whole size of rd_length
-    get_name(res, res_i, rd_length);
+    get_name(res, res_i, rd_length, aa);
   }
   // TODO Add logic for MX and NS
 
@@ -460,11 +461,9 @@ void get_answer(unsigned char *res, int *res_i) {
 }
 
 // Get the ip address located at the offset of the response
-char* get_ip(unsigned char *res, int * res_i) {
+char* get_ip(unsigned char *res, int * res_i, unsigned int aa) {
   // TODO Complete logic
   int ip[4];
-  // Move past the 4 that should procede this
-  (*res_i)++;
 
   // Capture the four numbers for the ip
   for (int i = 0; i < 4; i++) {
@@ -474,8 +473,12 @@ char* get_ip(unsigned char *res, int * res_i) {
   (*res)++;
 
   // Read the 4 octets 
-  //TODO Get this to work for auth/nonauth
-  printf("IP \t %d.%d.%d.%d auth", ip[0], ip[1], ip[2], ip[3]);
+  if (aa) {
+    printf("IP\t%d.%d.%d.%d\tauth\n", ip[0], ip[1], ip[2], ip[3]);
+	}
+	else {
+    printf("IP\t%d.%d.%d.%d\tnonauth\n", ip[0], ip[1], ip[2], ip[3]);
+	}
 }
 
 // Given a response and starting location
@@ -499,7 +502,7 @@ void add_word(unsigned char *res, int *res_i, char *name, int *name_len) {
 // This method will go through the RDATA and capture the name
 // that is stored at the location beggining at res[*res_i}
 // This will have to handle being redirected by pointers
-char* get_name(unsigned char *res, int *res_i, int rd_len) {
+char* get_name(unsigned char *res, int *res_i, int rd_len, unsigned int aa) {
   // TODO Check if pointer, send it through that logic
   // Otherwise call add_word
   char *name = "";
@@ -558,17 +561,28 @@ char* get_name(unsigned char *res, int *res_i, int rd_len) {
   name[name_len] = '\0';
 
   // TODO Make this work for auth/nonauth
-  printf("CNAME \t %s \t auth", name);
+  if (aa) {
+    printf("CNAME\t%s\tauth\n", name);
+	}
+	else {
+    printf("CNAME\t%s\tnonauth\n", name);
+	}
 }
 
 // Check if the questions in the request and the response packets match.
 // Updates res_i past the question and to the start of the answer.
+// If the res_i pointer is not at the end of the header/start of the 
+// question, return -1.
 // If the request packet and the response packet's names don't match,
-// return -1.
+// return -2.
 // return 0 on success.
 // TODO comment on params
 int check_question(unsigned char *res, size_t res_len, int *res_i, unsigned char *req, int req_len) {
-  walk_name(res, res_i); // TODO we want to skip header size into the request packet
+  // TODO we want to skip header size into the request packet
+	if (*res_i != (6 * 2)) {
+		return -1;
+	}
+  walk_name(res, res_i);
   // TODO actually check the questions, instead of skipping over
   // get qtype
   get_param(res, res_i);
@@ -595,13 +609,16 @@ int print_dns_response(unsigned char *res, size_t res_len, unsigned char *req, i
 	}
 
 	// the index into the response array that we are currently looking at
-	int res_i = 0; // TODO change to size_t
+	size_t res_i = 0;
 	// the number of answers we want
-  int num_answers = 0;
-	// check the DNS header; its invalid if return is < 0
-	if (num_answers = check_header(res, res_len, &res_i) < 0) {
+  int num_answers;
+  // AA flag
+  unsigned int aa = -1;
+	// check the DNS header; its invalid if return is < 0; or if aa is not set, error
+	if (((num_answers = check_header(res, res_len, &res_i, &aa)) < 0) || aa == -1) {
 		return -2;
 	}
+
 
 	// we want to check the question to see if it matches the request packet's question
 	// res_i should be a pointer the start of the question
@@ -609,7 +626,7 @@ int print_dns_response(unsigned char *res, size_t res_len, unsigned char *req, i
 
   // Capture all of the answers...
   for (int i = 0; i < num_answers; i++) {
-    get_answer(res, &res_i);
+    get_answer(res, &res_i, aa);
   }
 }
 
