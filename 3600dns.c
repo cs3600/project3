@@ -290,6 +290,8 @@ int check_header(unsigned char *res, int *res_i) {
     exit(0);
   }
 
+  // TODO: Check if auth or nonauth... pass info out
+
 	// get QDCOUNT TODO do we care to check this?
 	short qdcount = get_param(res, res_i);
 	// get ANCOUNT
@@ -345,10 +347,152 @@ short check_response_code(short flags) {
   }
 }
 
+// Is the value at the given index in the response a pointer
+int is_pointer(unsigned char *res, int *res_i) {
+  // Get the location where the pointer would be
+  int val = res[*res_i];
+  int pointer = val >> 6;
+
+  // if the last two bits are both 1's it is a pointer
+  if (pointer == 3) {
+    // capture the offset
+    short offset = res[val++];
+    // Remove the top two bits
+    offset &= 0xc0;
+    // shift it to the left
+    offset = offset << 8;
+    // Add the other byte to it
+    offset |= res[val];
+    return (int)offset;
+  }
+  // Was not a pointer
+  else {
+    return 0;
+  }
+}
+
 // Given a response and an index into the response
 // Get the answer and print it out
 void get_answer(unsigned char *res, int *res_i) {
+  // TODO see if this is a pointer
+  if (is_pointer(res, *res_i)) {
+   *res_i = *res_i + 2;
+  }
+  // Else walk to the end of the name...
+  else {
+    while (res[(*res_i)] != 0) {
+      // Check if it is a pointer
+      if (is_pointer(res, &res_i)) {
+        // Move it along
+        (*res_i)++;
+        break;
+      }
+      // Check the next one
+      (*res_i++);
+    }
+    // Move it to the starting index of the object after name
+    (*res_i)++;
+  }
+
+  // Get the type of answer
+  short type = get_param(res, *res_i);
+  // Get the class of the answer data
+  short class = get_param(res, *res_i);  
+  
+  //TODO Get past the TIL
+  short til = get_param(res, *res_i);
+  // Capture RDLENGTH
+  short rd_length = get_param(res, *res_i);
+  // 'A' Record, spit out IP (exactly 4 octets)
+  if (type == 1) {
+    // We should be at the beginning of RDATA
+    // We should only be reading the 4 octets
+    get_ip(res, *res_i);
+  }
+  // CNAME -> read it
+  // TODO Recycle the code from the top to actually get the name
+  else if (type == 5) {
+    // We should be reading the whole size of rd_length
+    get_name(res, *res_i, rd_length);
+  }
+
   return;
+}
+
+// Get the ip address located at the offset of the response
+char* get_ip(unsigned char *res, int * res_i) {
+  // TODO Complete logi
+  char *ip_addr;
+  
+  //TODO Get this to work for auth/nonauth
+  printf("IP \t %s auth", ip_addr);
+}
+// Given a response and starting location
+// Read the response and append it to the given string 'name'
+void add_word(unsigned char *res, int *res_i, char *name, int *name_len) {
+
+  // Get the length of the word we are going to add
+  int len = res[(*res_i)++];
+
+  // Make name big enough to hold the new word
+  realloc(name, (*name_len + len));
+  // Copy new word into name
+  for (int i = 0; i < len; i++) {
+    // Copy one character at a time
+    name[*name_len + i] = res[(*res_i)++];
+  }
+  // Update the name_len
+  *name_len = *name_len + len;
+} 
+// This method will go throught he RDATA and capture the name
+// that is stored at the location beggining at res[*res_i}
+// This will have to handle being redirected by pointers
+char* get_name(unsigned char *res, int *res_i, int rd_len) {
+  // TODO Check if pointer, send it through that logic
+  // Otherwise call add_word
+  char *name = "";
+  int name_len = 0;
+  // Retain where RDATA begins, will be useful for pointers
+  int start_loc = *res_i;
+  // how much we have read so far
+  int read = 0;
+
+  // Loop through until we have read all of it
+  while (read <= rd_len) {
+    // Check if it is a pointer, if it is returns location
+    int pointer_len = is_pointer(res, &res_i);
+    if (pointer_len) {
+      // We do not want to affect the position of res_i
+      // when reading a pointer, use a temp
+      int *tmp;
+      // Location of pointer
+      // TODO Do we need to be adding starting position???
+      *tmp = start_loc + pointer_len;
+      // Add the word starting at the pointer loc
+      add_word(res, &tmp, &name, &name_len);
+      // Increment for pointer and location
+      *res_i = *res_i + 2;
+      read += 2;
+    }
+    else {
+      // Increment for the amount we will be reading
+      read += res[*res_i];
+      add_word(res, &res_i, &name, &name_len);
+    }
+    // Add the '.' character
+    if (read <= rd_len) {
+      realloc(name, name_len + 1);
+      name[name_len] = '.';
+      name_len++;
+    }
+  }
+
+  // Null terminate the name
+  realloc(name, name_len + 1);
+  name[name_len] = '\0';
+
+  // TODO Make this work for auth/nonauth
+  printf("CNAME \t %s \t auth", name);
 }
 // Deconstructs and intreprets a dns response packet.
 // The param res should be a pointer to a response packet.
@@ -376,7 +520,7 @@ void read_dns_response(unsigned char **decomp, int  *decomp_len, unsigned char *
 	}
 
   //TODO Get to the beggining of the answers
-
+  
 
   // Capture all of the answers...
   for (int i = 0; i < num_answers; i++) {
