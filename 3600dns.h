@@ -109,7 +109,7 @@ char* get_name(unsigned char *res, int *res_i, int rd_len, unsigned int aa);
 char* get_ip(unsigned char *res, int *res_i, unsigned int aa);
 
 // add the word at the given offset to the given name
-void add_word(unsigned char *res, int *res_i, char *name, int *name_len);
+void add_word(unsigned char *res, int *res_i, char **name, int *name_len);
 
 // is the value at the given index in res a pointer
 int is_pointer(unsigned char *res, int *res_i);

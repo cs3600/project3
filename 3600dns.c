@@ -371,7 +371,7 @@ void print_error_code(unsigned char rcode, unsigned char aa) {
 
 // Is the value at the given index in the response a pointer
 // Return the address of the pointer or 0, if not pointer
-int is_pointer(unsigned char *res, int *res_i) {
+int is_pointer(unsigned char *res, int *res_i) { // why pass res_i pointer if not modifying?TODO
   // Get the location where the pointer would be
   int val = res[*res_i];
   int idx = *res_i;
@@ -483,17 +483,17 @@ char* get_ip(unsigned char *res, int * res_i, unsigned int aa) {
 
 // Given a response and starting location
 // Read the response and append it to the given string 'name'
-void add_word(unsigned char *res, int *res_i, char *name, int *name_len) {
+void add_word(unsigned char *res, int *res_i, char **name, int *name_len) {
 
   // Get the length of the word we are going to add
   int len = res[(*res_i)++];
 
   // Make name big enough to hold the new word
-  realloc(name, ((*name_len) + len));
+  *name = realloc(*name, ((*name_len) + len));
   // Copy new word into name
   for (int i = 0; i < len; i++) {
     // Copy one character at a time
-    name[*name_len + i] = res[(*res_i)++];
+    (*name)[(*name_len) + i] = res[(*res_i)++];
   }
   // Update the name_len
   *name_len = (*name_len) + len;
@@ -505,7 +505,7 @@ void add_word(unsigned char *res, int *res_i, char *name, int *name_len) {
 char* get_name(unsigned char *res, int *res_i, int rd_len, unsigned int aa) {
   // TODO Check if pointer, send it through that logic
   // Otherwise call add_word
-  char *name = "";
+  char *name = NULL;
   int name_len = 0;
   // index we will read next from to get a word in res
   int read_idx  = *res_i;
@@ -516,14 +516,14 @@ char* get_name(unsigned char *res, int *res_i, int rd_len, unsigned int aa) {
   // Should just terminate when we read a 0 as length
   while (res[read_idx] != 0) {
     // Check if it is a pointer, if it is returns location
-    int pointer_len = is_pointer(res, read_idx);
+    int pointer_len = is_pointer(res, &read_idx);
 
     if (pointer_len) {
       // Reset read_idx to the next location to read from pointer
       read_idx = pointer_len;
       // Capture the word there, and be set up for the word after it
       // this is reflected in updating read_idx within add_word()
-      add_word(res, read_idx, name, &name_len);
+      add_word(res, &read_idx, &name, &name_len);
 
       // Increment for pointer and location if this is the first pointer found
       if (pointer_found == 0) {
@@ -546,7 +546,7 @@ char* get_name(unsigned char *res, int *res_i, int rd_len, unsigned int aa) {
       }
 
       // Add the word to name
-      add_word(res, read_idx, name, &name_len);
+      add_word(res, &read_idx, &name, &name_len);
       
       
     }
@@ -558,7 +558,7 @@ char* get_name(unsigned char *res, int *res_i, int rd_len, unsigned int aa) {
 
   // Null terminate the name,
   //  which also get's rid of the extra '.' at the end
-  name[name_len] = '\0';
+  name[name_len-1] = '\0';
 
   // TODO Make this work for auth/nonauth
   if (aa) {
