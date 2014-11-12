@@ -34,8 +34,8 @@ my @tries = (	"\@129.10.112.152 joshua.ccs.neu.edu",
                 "\@129.10.112.152 a.b.c.d",
                 "\@129.10.112.152 128.42.5.4",
                 "\@129.10.112.151 www.ccs.neu.edu",
-		"\@129.10.116.61 joshua.ccs.neu.edu",
-		"\@129.10.116.61 www.ccs.neu.edu",
+            		"\@129.10.116.61 joshua.ccs.neu.edu",
+	            	"\@129.10.116.61 www.ccs.neu.edu",
                 "\@129.10.112.152:53 slashdot.org",
                 "\@129.10.112.152:54 slashdot.org");
 test($problem, 0, \@tries);

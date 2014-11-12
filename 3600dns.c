@@ -275,13 +275,13 @@ unsigned short get_param(unsigned char *res, int *res_i) {
 // return -3, rcode error
 int check_flags(unsigned short flags) {
 	// TODO get rid of params we do not need to check
-	unsigned char qr = (flags && 0x8000) >> 15; // should be 1
-	unsigned char opcode = (flags && 0x7800) >> 11;
-	unsigned char aa = (flags && 0x400) >> 10;
-	unsigned char tc = (flags && 0x200) >> 9;
-	unsigned char rd = (flags && 0x100) >> 8;
-	unsigned char ra = (flags && 0x80) >> 7;
-	unsigned char z = (flags && 0x70) >> 4;
+	unsigned char qr = (flags >> 15) & 0x01;
+	unsigned char opcode = (flags >> 11) & 0x0f;
+	unsigned char aa = (flags >> 10) & 0x01;
+	unsigned char tc = (flags >> 9) & 0x01;
+	unsigned char rd = (flags >> 8) & 0x01;
+	unsigned char ra = (flags >> 7) & 0x01;
+	unsigned char z = (flags >> 4) & 0x07;
   unsigned char rcode = flags & 0x0f;
 	// Need to check TD TODO print error?
 	if (tc) {
@@ -354,7 +354,7 @@ void print_error_code(unsigned char rcode, unsigned char aa) {
   else if (rcode == 2) {
     printf("ERROR \t RCODE - Server Failure\n");
   }
-  else if (rcode == 3 && aa) {
+  else if (rcode == 3) {
     printf("NOTFOUND\n");
   }
   else if (rcode == 4) {
@@ -536,6 +536,22 @@ char* get_name(unsigned char *res, int *res_i, int rd_len) {
   printf("CNAME \t %s \t auth", name);
 }
 
+// Check if the questions in the request and the response packets match.
+// Updates res_i past the question and to the start of the answer.
+// If the request packet and the response packet's names don't match,
+// return -1.
+// return 0 on success.
+// TODO comment on params
+int check_question(unsigned char *res, size_t res_len, int *res_i, unsigned char *req, int req_len) {
+  walk_name(res, res_i); // TODO we want to skip header size into the request packet
+  // TODO actually check the questions, instead of skipping over
+  // get qtype
+  get_param(res, res_i);
+  // get qclass
+  get_param(res, res_i);
+  return 0;
+}
+
 // Deconstructs and intreprets a dns response packet. Ensures that the response packet
 // is the response to the given request packet. Prints the answers in the dns response
 // to stdout if everything checks out.
@@ -554,7 +570,7 @@ int print_dns_response(unsigned char *res, size_t res_len, unsigned char *req, i
 	}
 
 	// the index into the response array that we are currently looking at
-	int res_i = 0;
+	int res_i = 0; // TODO change to size_t
 	// the number of answers we want
   int num_answers = 0;
 	// check the DNS header; its invalid if return is < 0
@@ -563,15 +579,13 @@ int print_dns_response(unsigned char *res, size_t res_len, unsigned char *req, i
 	}
 
 	// we want to check the question to see if it matches the request packet's question
-	// res_i should be a pointer the start of the ques
-	// check_question(res, res_len, res_i, req, req_len) // TODO we want to skip header size into the request packet
+	// res_i should be a pointer the start of the question
+	check_question(res, res_len, &res_i, req, req_len);
 
-/*
   // Capture all of the answers...
   for (int i = 0; i < num_answers; i++) {
     get_answer(res, &res_i);
   }
-*/
 }
 
 int main(int argc, char *argv[]) {
@@ -637,7 +651,9 @@ int main(int argc, char *argv[]) {
   }
 
 	// print the answer from the response if it is a valid response to the request
-  print_dns_response(response, response_size, request, request_len);
+  if (print_dns_response(response, response_size, request, request_len)) {
+  	return -3;
+	}
 
   return 0;
 }
