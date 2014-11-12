@@ -378,8 +378,8 @@ int is_pointer(unsigned char *res, int *res_i) {
 void get_answer(unsigned char *res, int *res_i) {
   // We want to walk past the name to the good stuff
   // See if this is a pointer
-  if (is_pointer(res, *res_i)) {
-    *res_i = *res_i + 2;
+  if (is_pointer(res, res_i)) {
+    *res_i = *res_i + 2; // change to += TODO
   }
   // Else walk to the end of the name...
   else {
@@ -449,7 +449,8 @@ void add_word(unsigned char *res, int *res_i, char *name, int *name_len) {
   }
   // Update the name_len
   *name_len = *name_len + len;
-} 
+}
+
 // This method will go throught he RDATA and capture the name
 // that is stored at the location beggining at res[*res_i}
 // This will have to handle being redirected by pointers
@@ -503,6 +504,7 @@ char* get_name(unsigned char *res, int *res_i, int rd_len) {
   // TODO Make this work for auth/nonauth
   printf("CNAME \t %s \t auth", name);
 }
+
 // Deconstructs and intreprets a dns response packet.
 // The param res should be a pointer to a response packet.
 // The param decomp should be a pointer to a NULL pointer.
@@ -533,7 +535,7 @@ void read_dns_response(unsigned char **decomp, int  *decomp_len, unsigned char *
 
   // Capture all of the answers...
   for (int i = 0; i < num_answers; i++) {
-    get_answer(res, &res_i);
+    get_answer(res, res_i);
   }
 }
 
