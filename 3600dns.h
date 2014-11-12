@@ -93,5 +93,22 @@ typedef struct request_options_t {
 	char *name;
 } request_options;
 
+// Returns the Rcode from a given response flag grouping
+short check_response_code(short flags);
+
+// Get an answer given res and the index into res (res_i)
+void get_answer(unsigned char *res, int *res_i);
+
+// Get the name at the given offset, should only be rd_len long
+char* get_name(unsigned char *res, int *res_i, int rd_len);
+
+// Get the ip address at the given offset of the rsponse
+char* get_ip(unsigned char *res, int *res_i);
+
+// add the word at the given offset to the given name
+void add_word(unsigned char *res, int *res_i, char *name, int *name_len);
+
+// is the value at the given index in res a pointer
+int is_pointer(unsigned char *res, int *res_i);
 #endif
 

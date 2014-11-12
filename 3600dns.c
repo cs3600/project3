@@ -265,6 +265,21 @@ unsigned short get_param(unsigned char *res, int *res_i) {
 	return param;
 }
 
+// Check the given flag param for invalid response codes or RCODE errors.
+// return 0, on success
+// return -1, TR or !RA
+// return -2, rcode error
+int check_flags(unsigned short flags) {
+
+	// Need to check TD TODO
+	// Need to check !RA TODO
+
+	//  Check the RD CODE
+  if (check_response_code(flags) != 0) {
+    exit(0);
+  }
+}
+
 // Gets the header in the given response packet.
 // The param res should be a pointer to a start of a response packet.
 // Returns the ANCOUNT of the packet on success; else returns an error
@@ -272,6 +287,7 @@ unsigned short get_param(unsigned char *res, int *res_i) {
 // return >= 0, ANCOUNT
 // return = -1, invalid args to the function
 // return = -2, invalid query id in the received packet
+// return = -3, invalid flags (TR or !RA) or rcode error
 int check_header(unsigned char *res, size_t res_len, int *res_i) {
 	// check input; make sure the incoming packet had enough
 	// bits to contain a header (6 sections of 2 bytes each)
@@ -287,7 +303,10 @@ int check_header(unsigned char *res, size_t res_len, int *res_i) {
 	// get flags
 	unsigned short flags = get_param(res, res_i);
 	// check the flags
-	// TODO
+	if (check_flags(flags) < 0) {
+		return -3;
+	}
+
 	// get QDCOUNT TODO do we care to check this?
 	unsigned short qdcount = get_param(res, res_i);
 	// get ANCOUNT
@@ -298,6 +317,197 @@ int check_header(unsigned char *res, size_t res_len, int *res_i) {
 	unsigned short arcount = get_param(res, res_i);
 
 	return ancount;
+}
+
+// Checks RCODE from the flags param.
+// Possible RCODE values:
+//   0  -> No error condition
+//   1  -> Format error (name serve unable to interpret query)
+//   2  -> Server failure (name server unable to process, name server error)
+//   3  -> Name error (domain name reference in query does not exist)
+//   4  -> Not Implemented (name server does not support requested query type)
+//   5  -> Refused (name server refuses op, policy reasons)
+unsigned short check_response_code(unsigned short flags) {
+  // Capture the RCDOE (last 4 bits of flags)
+  unsigned short rcode = flags & 0x0f;
+  // Handle possible errors
+  else if (rcode == 1) {
+    printf("ERROR \t RCODE - Format Error\n");
+  }
+  else if (rcode == 2) {
+    printf("ERROR \t RCODE - Server Failure\n");
+  }
+  else if (rcode == 3) {
+    printf("NOTFOUND\n");
+  }
+  else if (rcode == 4) {
+    printf("ERROR \t RCODE - Not Implemented\n");
+  }
+  else if (rcode == 5) {
+    printf("ERROR \t RCODE - Refused\n");
+  }
+  else if (rcode > 5) {
+    printf("ERROR\t RCODE - Unknown\n");
+  }
+  return rcode;
+}
+
+// Is the value at the given index in the response a pointer
+// Return the address of the pointer or 0, if not pointer
+int is_pointer(unsigned char *res, int *res_i) {
+  // Get the location where the pointer would be
+  int val = res[*res_i];
+  int idx = *res_i;
+  int pointer = val >> 6;
+
+  // if the last two bits are both 1's it is a pointer
+  if (pointer == 3) {
+    // capture the offset
+    short offset = res[idx++];
+    // Remove the top two bits
+    offset &= 0xc0;
+    // shift it to the left
+    offset = offset << 8;
+    // Add the other byte to it
+    offset |= res[idx];
+    return (int)offset;
+  }
+  // Was not a pointer
+  else {
+    return 0;
+  }
+}
+
+// Given a response and an index into the response
+// Get the answer and print it out
+void get_answer(unsigned char *res, int *res_i) {
+  // We want to walk past the name to the good stuff
+  // See if this is a pointer
+  if (is_pointer(res, res_i)) {
+    *res_i = *res_i + 2; // change to += TODO
+  }
+  // Else walk to the end of the name...
+  else {
+    // Names are terminated with a 0 or a pointer
+    while (res[(*res_i)] != 0) {
+      // Check if it is a pointer
+      if (is_pointer(res, &res_i)) {
+        // Move it along one, will be set to next outside of loop
+        (*res_i)++;
+        break;
+      }
+      // Check the next one
+      (*res_i++);
+    }
+    // Move it to the starting index of the object after name
+    (*res_i)++;
+  }
+
+  // Get the type of answer
+  short type = get_param(res, *res_i);
+  // Get the class of the answer data
+  short class = get_param(res, *res_i);  
+  
+  // Get past TIL (4 bytes)
+  short til = get_param(res, *res_i);
+  til = get_param(res, *res_i);
+  // Capture RDLENGTH
+  short rd_length = get_param(res, *res_i);
+  // 'A' Record, spit out IP (exactly 4 octets)
+  if (type == 1) {
+    // We should be at the beginning of RDATA
+    // We should only be reading the 4 octets
+    get_ip(res, *res_i);
+  }
+  // CNAME -> read it
+  // TODO Recycle the code from the top to actually get the name
+  else if (type == 5) {
+    // We should be reading the whole size of rd_length
+    get_name(res, *res_i, rd_length);
+  }
+  // TODO Add logic for MX and NS
+
+  return;
+}
+
+// Get the ip address located at the offset of the response
+char* get_ip(unsigned char *res, int * res_i) {
+  // TODO Complete logic
+  char *ip_addr;
+  
+  //TODO Get this to work for auth/nonauth
+  printf("IP \t %s auth", ip_addr);
+}
+// Given a response and starting location
+// Read the response and append it to the given string 'name'
+void add_word(unsigned char *res, int *res_i, char *name, int *name_len) {
+
+  // Get the length of the word we are going to add
+  int len = res[(*res_i)++];
+
+  // Make name big enough to hold the new word
+  realloc(name, (*name_len + len));
+  // Copy new word into name
+  for (int i = 0; i < len; i++) {
+    // Copy one character at a time
+    name[*name_len + i] = res[(*res_i)++];
+  }
+  // Update the name_len
+  *name_len = *name_len + len;
+}
+
+// This method will go throught he RDATA and capture the name
+// that is stored at the location beggining at res[*res_i}
+// This will have to handle being redirected by pointers
+char* get_name(unsigned char *res, int *res_i, int rd_len) {
+  // TODO Check if pointer, send it through that logic
+  // Otherwise call add_word
+  char *name = "";
+  int name_len = 0;
+  // Retain where RDATA begins, will be useful for pointers
+  int start_loc = *res_i;
+  // how much we have read so far
+  int read = 0;
+
+  // Loop through until we have read all of it
+  while (read <= rd_len) {
+    // Check if it is a pointer, if it is returns location
+    int pointer_len = is_pointer(res, &res_i);
+    if (pointer_len) {
+      // We do not want to affect the position of res_i
+      // when reading a pointer, use a temp
+      int *tmp;
+      // Location of pointer
+      // TODO Do we need to be adding starting position???
+      *tmp = start_loc + pointer_len;
+      // Add the word starting at the pointer loc
+      add_word(res, &tmp, &name, &name_len);
+      // Increment for pointer and location
+      *res_i = *res_i + 2;
+      read += 2;
+    }
+    else {
+      // Increment for the amount we will be reading
+      // Because it is not a poinyer the value will be stored in the 
+      // first index
+      read += res[*res_i];
+      // Add the word to name
+      add_word(res, &res_i, &name, &name_len);
+    }
+    // Add the '.' character as long as we are not at the end
+    if (read <= rd_len) {
+      realloc(name, name_len + 1);
+      name[name_len] = '.';
+      name_len++;
+    }
+  }
+
+  // Null terminate the name
+  realloc(name, name_len + 1);
+  name[name_len] = '\0';
+
+  // TODO Make this work for auth/nonauth
+  printf("CNAME \t %s \t auth", name);
 }
 
 // Deconstructs and intreprets a dns response packet. Ensures that the response packet
@@ -327,8 +537,10 @@ void print_dns_response(unsigned char *res, size_t res_len, unsigned char *req, 
 
 	// the index into the response array that we are currently looking at
 	int res_i = 0;
+	// the number of answers we want
+  int num_answers = 0;
 	// check the DNS header; its invalid if return is < 0
-	if (check_header(res, res_len, &res_i) < 0) {
+	if (num_answers = check_header(res, res_len, &res_i) < 0) {
 		return; // TODO return error code
 	}
 
@@ -336,8 +548,12 @@ void print_dns_response(unsigned char *res, size_t res_len, unsigned char *req, 
 	// res_i should be a pointer the start of the ques
 	// check_question(res, res_len, res_i, req, req_len) // TODO we want to skip header size into the request packet
 
-	// get the DNS answer
-	// get_answer() TODO
+/*
+  // Capture all of the answers...
+  for (int i = 0; i < num_answers; i++) {
+    get_answer(res, res_i);
+  }
+*/
 }
 
 int main(int argc, char *argv[]) {
@@ -396,6 +612,7 @@ int main(int argc, char *argv[]) {
     }
   } else {
     // a timeout occurred
+    printf("NORESPONSE\n");
     return -2; // TODO confirm this behavior
   }
 
