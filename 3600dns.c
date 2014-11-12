@@ -274,7 +274,7 @@ int check_flags(unsigned short flags) {
 	// Need to check TD TODO
 	// Need to check !RA TODO
 
-	//  Check the RD CODE
+	//  Check the RCODE
   if (check_response_code(flags) != 0) {
     exit(0);
   }
@@ -331,7 +331,7 @@ unsigned short check_response_code(unsigned short flags) {
   // Capture the RCDOE (last 4 bits of flags)
   unsigned short rcode = flags & 0x0f;
   // Handle possible errors
-  else if (rcode == 1) {
+  if (rcode == 1) {
     printf("ERROR \t RCODE - Format Error\n");
   }
   else if (rcode == 2) {
