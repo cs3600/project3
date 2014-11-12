@@ -73,6 +73,10 @@
 // Maximum response size
 #define MAX_RESPONSE_SIZE 65536
 
+// Total number of bytes in a DNS packet header
+// 6 fields * 16 bits/field = 96 bits = 12 bytes
+#define TOTAL_HEADER_BYTES 12
+
 // Represents the requested server ip,
 // port number, and domain name in a
 // logical structure.

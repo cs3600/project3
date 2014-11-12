@@ -272,9 +272,10 @@ unsigned short get_param(unsigned char *res, int *res_i) {
 // return >= 0, ANCOUNT
 // return = -1, invalid args to the function
 // return = -2, invalid query id in the received packet
-int check_header(unsigned char *res, int *res_i) {
-	// check that we have a valid pointer to a non-null pointer.
-	if (res == NULL || *res == NULL) {
+int check_header(unsigned char *res, size_t res_len, int *res_i) {
+	// check input; make sure the incoming packet had enough
+	// bits to contain a header (6 sections of 2 bytes each)
+	if (res == NULL || res_i < (6 * 2)) {
 		return -1; // invalid args
 	}
 	// get ID
@@ -299,27 +300,41 @@ int check_header(unsigned char *res, int *res_i) {
 	return ancount;
 }
 
-// Deconstructs and intreprets a dns response packet.
+// Deconstructs and intreprets a dns response packet. Ensures that the response packet
+// is the response to the given request packet. Prints the answers in the dns response
+// to stdout if everything checks out.
+//
 // The param res should be a pointer to a response packet.
-// The param decomp should be a pointer to a NULL pointer.
-// The param decomp_len must be an int pointer to 0.
-// The param *decomp will contain the response packet's interpretation 
-// and will have length *decomp_len.
-// TODO we should pass in an accurate response packet length, otherwise we are making
-// an assumption that the packet *res is well-formed, which is not safe.
-void read_dns_response(unsigned char **decomp, int  *decomp_len, unsigned char *res) {
+// The param res_len must be an int pointer to the length of the response packet.
+// The param req should be a pointer to a request packet.
+// The param req_len must be an int pointer to the length of the request packet.
+// 
+// TODO this function is disgusting, Just print the deconstructed response in this
+// function. Better thing to do would be to return the deconstructed response,
+// however that could entail some serious pointer madness. There could be 
+// multiple responses and that means we would be returning an array (a pointer)
+// to a bunch of strings (more pointers). A simplification of this is that
+// we can assume that what we are return are an array of null terminated strings
+// meaning we don't need to return the size of each string because we can get it
+// via strlen(). However, we would need to return the length of the returned array
+// which would require adding another parameter. This would make us have 5 params
+// which is pretty bulky and ugly looking.
+void print_dns_response(unsigned char *res, size_t res_len, unsigned char *req, int req_len) {
 	// valid input checks
-	if (res == NULL || *res == NULL || decomp == NULL || *decomp != NULL ||
-			decomp_len == NULL || *decomp_len != 0) {
+	if (res == NULL || req == NULL) {
 		return; // TODO return error code
 	}
 
 	// the index into the response array that we are currently looking at
 	int res_i = 0;
 	// check the DNS header; its invalid if return is < 0
-	if (check_header(res, &res_i) < 0) {
+	if (check_header(res, res_len, &res_i) < 0) {
 		return; // TODO return error code
 	}
+
+	// we want to check the question to see if it matches the request packet's question
+	// res_i should be a pointer the start of the ques
+	// check_question(res, res_len, res_i, req, req_len) // TODO we want to skip header size into the request packet
 
 	// get the DNS answer
 	// get_answer() TODO
@@ -335,12 +350,12 @@ int main(int argc, char *argv[]) {
   request_options opts = get_request_options(argv);
 
   // construct the DNS request
-  int packet_len = 0;
-  unsigned char *packet = NULL;
-  create_dns_request(opts.name, &packet, &packet_len);
+  int request_len = 0;
+  unsigned char *request = NULL;
+  create_dns_request(opts.name, &request, &request_len);
 
-	// Display packet contents
-  dump_packet(packet, packet_len);
+	// Display request packet contents
+  dump_packet(request, request_len);
   
   // first, open a UDP socket  
   int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -352,7 +367,7 @@ int main(int argc, char *argv[]) {
   out.sin_addr.s_addr = inet_addr(opts.server);
 
   // send the DNS request (and call dump_packet with your request)
-  if (sendto(sock, packet, packet_len, 0, &out, sizeof(out)) < 0) {
+  if (sendto(sock, request, request_len, 0, &out, sizeof(out)) < 0) {
     // an error occurred
     return -1; // TODO CONFIRM THIS BEHAVIOR
   }
@@ -372,10 +387,10 @@ int main(int argc, char *argv[]) {
   t.tv_usec = 0;
 
   // wait to receive, or for a timeout
-  int response_size = MAX_RESPONSE_SIZE;
+  int response_size;
   unsigned char response[MAX_RESPONSE_SIZE];
   if (select(sock + 1, &socks, NULL, NULL, &t)) {
-    if (recvfrom(sock, response, response_size, 0, &in, &in_len) < 0) {
+    if (response_size = recvfrom(sock, response, MAX_RESPONSE_SIZE, 0, &in, &in_len) < 0) {
       // an error occurred
       return -3; // TODO confirm this behavior
     }
@@ -384,16 +399,8 @@ int main(int argc, char *argv[]) {
     return -2; // TODO confirm this behavior
   }
 
-	// a deconstruction of the packet
-	int decomp_len = 0;
-	unsigned char *decomp = NULL;
-  read_dns_response(&decomp, &decomp_len, response);
+	// print the answer from the response if it is a valid response to the request
+  print_dns_response(response, response_size, request, request_len);
 
-  // print the result if we have it
-  if (decomp) {
-    printf("%s\n", decomp);
-	}
-
-  // print out the result TODO
   return 0;
 }
