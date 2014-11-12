@@ -389,41 +389,45 @@ void get_answer(unsigned char *res, int *res_i) {
   // Else walk to the end of the name...
   else {
     // Names are terminated with a 0 or a pointer
+    // TODO THIS MIGHT BE A BUG
+    // We might only want to check the locations where there
+    // should be a number or poiter than skip ahead to the next
+    // If we don't we might get false positives
     while (res[(*res_i)] != 0) {
       // Check if it is a pointer
-      if (is_pointer(res, &res_i)) {
+      if (is_pointer(res, res_i)) {
         // Move it along one, will be set to next outside of loop
         (*res_i)++;
         break;
       }
       // Check the next one
-      (*res_i++);
+      (*res_i)++;
     }
     // Move it to the starting index of the object after name
     (*res_i)++;
   }
 
   // Get the type of answer
-  short type = get_param(res, *res_i);
+  short type = get_param(res, res_i);
   // Get the class of the answer data
-  short class = get_param(res, *res_i);  
+  short class = get_param(res, res_i);  
   
   // Get past TIL (4 bytes)
-  short til = get_param(res, *res_i);
-  til = get_param(res, *res_i);
+  short til = get_param(res, res_i);
+  til = get_param(res, res_i);
   // Capture RDLENGTH
-  short rd_length = get_param(res, *res_i);
+  short rd_length = get_param(res, res_i);
   // 'A' Record, spit out IP (exactly 4 octets)
   if (type == 1) {
     // We should be at the beginning of RDATA
     // We should only be reading the 4 octets
-    get_ip(res, *res_i);
+    get_ip(res, res_i);
   }
   // CNAME -> read it
   // TODO Recycle the code from the top to actually get the name
   else if (type == 5) {
     // We should be reading the whole size of rd_length
-    get_name(res, *res_i, rd_length);
+    get_name(res, res_i, rd_length);
   }
   // TODO Add logic for MX and NS
 
@@ -472,16 +476,15 @@ char* get_name(unsigned char *res, int *res_i, int rd_len) {
   // Loop through until we have read all of it
   while (read <= rd_len) {
     // Check if it is a pointer, if it is returns location
-    int pointer_len = is_pointer(res, &res_i);
+    int pointer_len = is_pointer(res, res_i);
     if (pointer_len) {
       // We do not want to affect the position of res_i
       // when reading a pointer, use a temp
-      int *tmp;
+      int tmp = start_loc + pointer_len;
       // Location of pointer
       // TODO Do we need to be adding starting position???
-      *tmp = start_loc + pointer_len;
       // Add the word starting at the pointer loc
-      add_word(res, &tmp, &name, &name_len);
+      add_word(res, &tmp, name, &name_len);
       // Increment for pointer and location
       *res_i = *res_i + 2;
       read += 2;
@@ -492,7 +495,7 @@ char* get_name(unsigned char *res, int *res_i, int rd_len) {
       // first index
       read += res[*res_i];
       // Add the word to name
-      add_word(res, &res_i, &name, &name_len);
+      add_word(res, res_i, name, &name_len);
     }
     // Add the '.' character as long as we are not at the end
     if (read <= rd_len) {
@@ -551,7 +554,7 @@ void print_dns_response(unsigned char *res, size_t res_len, unsigned char *req, 
 /*
   // Capture all of the answers...
   for (int i = 0; i < num_answers; i++) {
-    get_answer(res, res_i);
+    get_answer(res, &res_i);
   }
 */
 }
