@@ -462,10 +462,20 @@ void get_answer(unsigned char *res, int *res_i) {
 // Get the ip address located at the offset of the response
 char* get_ip(unsigned char *res, int * res_i) {
   // TODO Complete logic
-  char *ip_addr;
-  
+  int ip[4];
+  // Move past the 4 that should procede this
+  (*res_i)++;
+
+  // Capture the four numbers for the ip
+  for (int i = 0; i < 4; i++) [
+    ip[i] = res[(*res_i_)++];
+  }
+  // TODO Assuming this is 0 terminated, skip over it
+  (*res)++;
+
+  // Read the 4 octets 
   //TODO Get this to work for auth/nonauth
-  printf("IP \t %s auth", ip_addr);
+  printf("IP \t %d.%d.%d.%d auth", ip[0], ip[1], ip[2], ip[3]);
 }
 
 // Given a response and starting location
