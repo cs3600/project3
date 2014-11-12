@@ -73,6 +73,10 @@
 // Maximum response size
 #define MAX_RESPONSE_SIZE 65536
 
+// Total number of bytes in a DNS packet header
+// 6 fields * 16 bits/field = 96 bits = 12 bytes
+#define TOTAL_HEADER_BYTES 12
+
 // Represents the requested server ip,
 // port number, and domain name in a
 // logical structure.
@@ -89,8 +93,7 @@ typedef struct request_options_t {
 	char *name;
 } request_options;
 
-// Returns the Rcode from a given response flag grouping
-short check_response_code(short flags);
+void print_error_code(unsigned char rcode, unsigned char aa);
 
 // Get an answer given res and the index into res (res_i)
 void get_answer(unsigned char *res, int *res_i);

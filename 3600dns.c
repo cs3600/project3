@@ -126,10 +126,12 @@ request_options get_request_options(char *arg[]) {
 
 // Sets the given param in the given request packet. 
 // Updates the size of the request packet accordingly.
+// return 0, 
+// return = -1, invalid args to the function
 void set_param(unsigned char **req, int *req_size, short param) {
   // NULL checks
 	if (req == NULL || req_size == NULL) {
-		return; // TODO return error codes
+		return -1;
 	}
 	// update the packet size with the param size
 	int param_size = sizeof(param);
@@ -138,6 +140,7 @@ void set_param(unsigned char **req, int *req_size, short param) {
 	// update the packet
 	(*req)[*req_size - param_size--] = (param >> BYTE_TO_BITS) & 0xFF;
 	(*req)[*req_size - param_size] = param & 0xFF;
+	return 0;
 }
 
 // Sets the given octet in at given place in the given request packet. 
@@ -248,19 +251,52 @@ void create_dns_request(char *name, unsigned char **req, int *req_size) {
 
 // Gets the next param in the given response packet. 
 // A param is two bytes/octets.
-short get_param(unsigned char *res, int *res_i) { // TODO update comments about res_i
+unsigned short get_param(unsigned char *res, int *res_i) {
+	// TODO update comments about res_i
+	// we need to also check the size of param for out of bounds
   // NULL checks
 	if (res == NULL || *res == NULL) {
 		return; // TODO return error codes
 	}
 	// initialize the param to 0
-	short param = 0;
+	unsigned short param = 0;
 	// update the param and packet pointer
 	char *packet = *res;
 	param = res[(*res_i)++];
 	param <<= BYTE_TO_BITS;
 	param |= res[(*res_i)++];
 	return param;
+}
+
+// Check the given flag param for invalid response codes or RCODE errors.
+// return 0, on success
+// return -1, TC
+// return -2, !RA
+// return -3, rcode error
+int check_flags(unsigned short flags) {
+	// TODO get rid of params we do not need to check
+	unsigned char qr = (flags && 0x8000) >> 15; // should be 1
+	unsigned char opcode = (flags && 0x7800) >> 11;
+	unsigned char aa = (flags && 0x400) >> 10;
+	unsigned char tc = (flags && 0x200) >> 9;
+	unsigned char rd = (flags && 0x100) >> 8;
+	unsigned char ra = (flags && 0x80) >> 7;
+	unsigned char z = (flags && 0x70) >> 4;
+  unsigned char rcode = flags & 0x0f;
+	// Need to check TD TODO print error?
+	if (tc) {
+		return -1; 
+	}
+	// Need to check !RA TODO print error?
+	if (ra == 0) {
+		return -2;
+	}
+	//  Check the RCODE
+  if (rcode != 0) {
+  	print_error_code(rcode, aa);
+    return -3;
+  }
+  return 0;
 }
 
 // Gets the header in the given response packet.
@@ -270,41 +306,39 @@ short get_param(unsigned char *res, int *res_i) { // TODO update comments about 
 // return >= 0, ANCOUNT
 // return = -1, invalid args to the function
 // return = -2, invalid query id in the received packet
-int check_header(unsigned char *res, int *res_i) {
-	// check that we have a valid pointer to a non-null pointer.
-	if (res == NULL || *res == NULL) {
+// return = -3, invalid flags (TC or !RA) or rcode error
+int check_header(unsigned char *res, size_t res_len, int *res_i) {
+	// check input; make sure the incoming packet had enough
+	// bits to contain a header (6 sections of 2 bytes each)
+	if (res == NULL || res_i < (6 * 2)) {
 		return -1; // invalid args
 	}
 	// get ID
-	short id = get_param(res, res_i);
+	unsigned short id = get_param(res, res_i);
 	// check that we received the right packet
 	if (id != ID) {
 		return -2; // invalid query ID
 	}
 	// get flags
-	short flags = get_param(res, res_i);
-	// Get the rcode
-  short rcode = check_response_code(flags);  
-	//  Check the RD CODE
-  if (rcode != 0) {
-    exit(0);
-  }
-
-  // TODO: Check if auth or nonauth... pass info out
+	unsigned short flags = get_param(res, res_i);
+	// check the flags
+	if (check_flags(flags) < 0) {
+		return -3;
+	}
 
 	// get QDCOUNT TODO do we care to check this?
-	short qdcount = get_param(res, res_i);
+	unsigned short qdcount = get_param(res, res_i);
 	// get ANCOUNT
-	short ancount = get_param(res, res_i);
+	unsigned short ancount = get_param(res, res_i);
 	// get NSCOUNT TODO do we care to check this?
-	short nscount = get_param(res, res_i);
+	unsigned short nscount = get_param(res, res_i);
 	// get ARCOUNT TODO do we care to check this?
-	short arcount = get_param(res, res_i);
+	unsigned short arcount = get_param(res, res_i);
 
 	return ancount;
 }
 
-// Receives the flags from a response and checks the RCODE
+// Checks RCODE from the flags param. TODO auth non auth
 // Possible RCODE values:
 //   0  -> No error condition
 //   1  -> Format error (name serve unable to interpret query)
@@ -312,38 +346,25 @@ int check_header(unsigned char *res, int *res_i) {
 //   3  -> Name error (domain name reference in query does not exist)
 //   4  -> Not Implemented (name server does not support requested query type)
 //   5  -> Refused (name server refuses op, policy reasons)
-short check_response_code(short flags) {
-  // Capture the RCDOE (last 4 bits of flags)
-  short rcode = flags & 0x0f;
- 
-  // Handle all of the possible values
-  if (rcode == 0) {
-    // 0 means no error, return
-    return rcode;
-  }
-  else if (rcode == 1) {
+void print_error_code(unsigned char rcode, unsigned char aa) {
+  // Handle possible errors
+  if (rcode == 1) {
     printf("ERROR \t RCODE - Format Error\n");
-    return rcode;
   }
   else if (rcode == 2) {
     printf("ERROR \t RCODE - Server Failure\n");
-    return rcode;
   }
-  else if (rcode == 3) {
+  else if (rcode == 3 && aa) {
     printf("NOTFOUND\n");
-    return rcode;
   }
   else if (rcode == 4) {
     printf("ERROR \t RCODE - Not Implemented\n");
-    return rcode;
   }
   else if (rcode == 5) {
     printf("ERROR \t RCODE - Refused\n");
-    return rcode;
   }
-  else {
-    printf("ERROR: ********** RCODE FUCKED ***********\n");
-    return (short)6;
+  else if (rcode > 5) {
+    printf("ERROR\t RCODE - Unknown\n");
   }
 }
 
@@ -437,6 +458,7 @@ char* get_ip(unsigned char *res, int * res_i) {
   //TODO Get this to work for auth/nonauth
   printf("IP \t %s auth", ip_addr);
 }
+
 // Given a response and starting location
 // Read the response and append it to the given string 'name'
 void add_word(unsigned char *res, int *res_i, char *name, int *name_len) {
@@ -455,7 +477,7 @@ void add_word(unsigned char *res, int *res_i, char *name, int *name_len) {
   *name_len = (*name_len) + len;
 }
 
-// This method will go throught he RDATA and capture the name
+// This method will go through the RDATA and capture the name
 // that is stored at the location beggining at res[*res_i}
 // This will have to handle being redirected by pointers
 char* get_name(unsigned char *res, int *res_i, int rd_len) {
@@ -505,38 +527,42 @@ char* get_name(unsigned char *res, int *res_i, int rd_len) {
   printf("CNAME \t %s \t auth", name);
 }
 
-// Deconstructs and intreprets a dns response packet.
+// Deconstructs and intreprets a dns response packet. Ensures that the response packet
+// is the response to the given request packet. Prints the answers in the dns response
+// to stdout if everything checks out.
+//
 // The param res should be a pointer to a response packet.
-// The param decomp should be a pointer to a NULL pointer.
-// The param decomp_len must be an int pointer to 0.
-// The param *decomp will contain the response packet's interpretation 
-// and will have length *decomp_len.
-// TODO we should pass in an accurate response packet length, otherwise we are making
-// an assumption that the packet *res is well-formed, which is not safe.
-void read_dns_response(unsigned char **decomp, int  *decomp_len, unsigned char *res) {
+// The param res_len must be an int pointer to the length of the response packet.
+// The param req should be a pointer to a request packet.
+// The param req_len must be an int pointer to the length of the request packet.
+//
+// returns -1, invalid input; null pointers
+// returns -2, invalid header
+int print_dns_response(unsigned char *res, size_t res_len, unsigned char *req, int req_len) {
 	// valid input checks
-	if (res == NULL || *res == NULL || decomp == NULL || *decomp != NULL ||
-			decomp_len == NULL || *decomp_len != 0) {
-		return; // TODO return error code
+	if (res == NULL || req == NULL) {
+		return -1;
 	}
 
 	// the index into the response array that we are currently looking at
 	int res_i = 0;
-  // check_header will return the number of answers if no errors
-  // otherwise it will return a negative number on error
+	// the number of answers we want
   int num_answers = 0;
 	// check the DNS header; its invalid if return is < 0
-	if (num_answers = check_header(res, &res_i) < 0) {
-		return; // TODO return error code
+	if (num_answers = check_header(res, res_len, &res_i) < 0) {
+		return -2;
 	}
 
-  //TODO Get to the beggining of the answers
-  
+	// we want to check the question to see if it matches the request packet's question
+	// res_i should be a pointer the start of the ques
+	// check_question(res, res_len, res_i, req, req_len) // TODO we want to skip header size into the request packet
 
+/*
   // Capture all of the answers...
   for (int i = 0; i < num_answers; i++) {
     get_answer(res, &res_i);
   }
+*/
 }
 
 int main(int argc, char *argv[]) {
@@ -549,12 +575,12 @@ int main(int argc, char *argv[]) {
   request_options opts = get_request_options(argv);
 
   // construct the DNS request
-  int packet_len = 0;
-  unsigned char *packet = NULL;
-  create_dns_request(opts.name, &packet, &packet_len);
+  int request_len = 0;
+  unsigned char *request = NULL;
+  create_dns_request(opts.name, &request, &request_len);
 
-	// Display packet contents
-  dump_packet(packet, packet_len);
+	// Display request packet contents
+  dump_packet(request, request_len);
   
   // first, open a UDP socket  
   int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -566,9 +592,10 @@ int main(int argc, char *argv[]) {
   out.sin_addr.s_addr = inet_addr(opts.server);
 
   // send the DNS request (and call dump_packet with your request)
-  if (sendto(sock, packet, packet_len, 0, &out, sizeof(out)) < 0) {
+  if (sendto(sock, request, request_len, 0, &out, sizeof(out)) < 0) {
+  	printf("ERROR SENDING PACKET\n");
     // an error occurred
-    return -1; // TODO CONFIRM THIS BEHAVIOR
+    return -1;
   }
 
   // wait for the DNS reply (timeout: 5 seconds)
@@ -586,24 +613,22 @@ int main(int argc, char *argv[]) {
   t.tv_usec = 0;
 
   // wait to receive, or for a timeout
-  int response_size = MAX_RESPONSE_SIZE;
+  int response_size;
   unsigned char response[MAX_RESPONSE_SIZE];
   if (select(sock + 1, &socks, NULL, NULL, &t)) {
-    if (recvfrom(sock, response, response_size, 0, &in, &in_len) < 0) {
+    if ((response_size = recvfrom(sock, response, MAX_RESPONSE_SIZE, 0, &in, &in_len)) < 0) {
+  	  printf("ERROR RECEIVING PACKET\n");
       // an error occurred
-      return -3; // TODO confirm this behavior
+      return response_size;
     }
   } else {
     // a timeout occurred
     printf("NORESPONSE\n");
-    return -2; // TODO confirm this behavior
+    return -2;
   }
 
-	// a deconstruction of the packet
-	int decomp_len = 0;
-	unsigned char *decomp = NULL;
-  read_dns_response(&decomp, &decomp_len, response);
+	// print the answer from the response if it is a valid response to the request
+  print_dns_response(response, response_size, request, request_len);
 
-  // print out the result TODO
   return 0;
 }
