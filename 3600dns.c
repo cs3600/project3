@@ -504,42 +504,57 @@ char* get_name(unsigned char *res, int *res_i, int rd_len) {
   // Otherwise call add_word
   char *name = "";
   int name_len = 0;
-  // how much we have read so far
-  int read = 0;
+  // index we will read next from to get a word in res
+  int read_idx  = *res_i;
+  // Signifies if we have found a pointer in RDATA so far
+  int pointer_found = 0;
 
   // Loop through until we have read all of it
   // Should just terminate when we read a 0 as length
-  while (read <= rd_len) {
+  while (res[read_idx] != 0) {
     // Check if it is a pointer, if it is returns location
-    int pointer_len = is_pointer(res, res_i);
+    int pointer_len = is_pointer(res, read_idx);
+
     if (pointer_len) {
-      // We do not want to effect res_i
-      // Add the word starting at the pointer loc
-      add_word(res, &pointer_len, name, &name_len);
-      // Increment for pointer and location
-      *res_i = (*res_i) + 2;
-      // TODO we should follow to the end of the pointers, not continue with this loop...
-      // Could just reset res_i to pointer len...
-      read += 2;
+      // Reset read_idx to the next location to read from pointer
+      read_idx = pointer_len;
+      // Capture the word there, and be set up for the word after it
+      // this is reflected in updating read_idx within add_word()
+      add_word(res, read_idx, name, &name_len);
+
+      // Increment for pointer and location if this is the first pointer found
+      if (pointer_found == 0) {
+        // This signifies the end of RDATA
+        *res_i = (*res_i) + 2;
+        pointer_found = 1; 
+      }
+      // Otherwise we already found the first pointer and
+      // know the end of RDATA
     }
+    // Not at a pointer
     else {
-      // Increment for the amount we will be reading
-      // Because it is not a poinyer the value will be stored in the 
-      // first index
-      read += res[*res_i];
+      // if we haven't already found a pointer to terminate RDATA
+      // increment res_i so it can accurately reflect our location in RDATA
+      if (pointer_found == 0) {
+        // Add the number relevant to chars to be read, and then one more
+        // to get past the last char in the chars read
+        // ex 3www -> we want to get to the index directly after the last 'w'
+        (*res_i) = (*res_i) + res[read_idx] + 1;
+      }
+
       // Add the word to name
-      add_word(res, res_i, name, &name_len);
+      add_word(res, read_idx, name, &name_len);
+      
+      
     }
     // Add the '.' character as long as we are not at the end
-    if (read <= rd_len) {
-      realloc(name, name_len + 1);
-      name[name_len] = '.';
-      name_len++;
-    }
+    realloc(name, name_len + 1);
+    name[name_len] = '.';
+    name_len++;
   }
 
-  // Null terminate the name
-  realloc(name, name_len + 1);
+  // Null terminate the name,
+  //  which also get's rid of the extra '.' at the end
   name[name_len] = '\0';
 
   // TODO Make this work for auth/nonauth
