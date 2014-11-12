@@ -360,7 +360,7 @@ int is_pointer(unsigned char *res, int *res_i) {
     // capture the offset
     short offset = res[idx++];
     // Remove the top two bits
-    offset &= 0xc0;
+    offset &= 0x3f;
     // shift it to the left
     offset = offset << 8;
     // Add the other byte to it
@@ -379,7 +379,7 @@ void get_answer(unsigned char *res, int *res_i) {
   // We want to walk past the name to the good stuff
   // See if this is a pointer
   if (is_pointer(res, res_i)) {
-    *res_i = *res_i + 2; // change to += TODO
+    *res_i = (*res_i) + 2; // change to += TODO
   }
   // Else walk to the end of the name...
   else {
@@ -445,14 +445,14 @@ void add_word(unsigned char *res, int *res_i, char *name, int *name_len) {
   int len = res[(*res_i)++];
 
   // Make name big enough to hold the new word
-  realloc(name, (*name_len + len));
+  realloc(name, ((*name_len) + len));
   // Copy new word into name
   for (int i = 0; i < len; i++) {
     // Copy one character at a time
     name[*name_len + i] = res[(*res_i)++];
   }
   // Update the name_len
-  *name_len = *name_len + len;
+  *name_len = (*name_len) + len;
 }
 
 // This method will go throught he RDATA and capture the name
@@ -463,25 +463,22 @@ char* get_name(unsigned char *res, int *res_i, int rd_len) {
   // Otherwise call add_word
   char *name = "";
   int name_len = 0;
-  // Retain where RDATA begins, will be useful for pointers
-  int start_loc = *res_i;
   // how much we have read so far
   int read = 0;
 
   // Loop through until we have read all of it
+  // Should just terminate when we read a 0 as length
   while (read <= rd_len) {
     // Check if it is a pointer, if it is returns location
     int pointer_len = is_pointer(res, res_i);
     if (pointer_len) {
-      // We do not want to affect the position of res_i
-      // when reading a pointer, use a temp
-      int tmp = start_loc + pointer_len;
-      // Location of pointer
-      // TODO Do we need to be adding starting position???
+      // We do not want to effect res_i
       // Add the word starting at the pointer loc
-      add_word(res, &tmp, name, &name_len);
+      add_word(res, &pointer_len, name, &name_len);
       // Increment for pointer and location
-      *res_i = *res_i + 2;
+      *res_i = (*res_i) + 2;
+      // TODO we should follow to the end of the pointers, not continue with this loop...
+      // Could just reset res_i to pointer len...
       read += 2;
     }
     else {
