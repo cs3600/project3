@@ -348,21 +348,23 @@ short check_response_code(short flags) {
 }
 
 // Is the value at the given index in the response a pointer
+// Return the address of the pointer or 0, if not pointer
 int is_pointer(unsigned char *res, int *res_i) {
   // Get the location where the pointer would be
   int val = res[*res_i];
+  int idx = *res_i;
   int pointer = val >> 6;
 
   // if the last two bits are both 1's it is a pointer
   if (pointer == 3) {
     // capture the offset
-    short offset = res[val++];
+    short offset = res[idx++];
     // Remove the top two bits
     offset &= 0xc0;
     // shift it to the left
     offset = offset << 8;
     // Add the other byte to it
-    offset |= res[val];
+    offset |= res[idx];
     return (int)offset;
   }
   // Was not a pointer
@@ -374,16 +376,18 @@ int is_pointer(unsigned char *res, int *res_i) {
 // Given a response and an index into the response
 // Get the answer and print it out
 void get_answer(unsigned char *res, int *res_i) {
-  // TODO see if this is a pointer
+  // We want to walk past the name to the good stuff
+  // See if this is a pointer
   if (is_pointer(res, *res_i)) {
-   *res_i = *res_i + 2;
+    *res_i = *res_i + 2;
   }
   // Else walk to the end of the name...
   else {
+    // Names are terminated with a 0 or a pointer
     while (res[(*res_i)] != 0) {
       // Check if it is a pointer
       if (is_pointer(res, &res_i)) {
-        // Move it along
+        // Move it along one, will be set to next outside of loop
         (*res_i)++;
         break;
       }
@@ -399,8 +403,9 @@ void get_answer(unsigned char *res, int *res_i) {
   // Get the class of the answer data
   short class = get_param(res, *res_i);  
   
-  //TODO Get past the TIL
+  // Get past TIL (4 bytes)
   short til = get_param(res, *res_i);
+  til = get_param(res, *res_i);
   // Capture RDLENGTH
   short rd_length = get_param(res, *res_i);
   // 'A' Record, spit out IP (exactly 4 octets)
@@ -415,13 +420,14 @@ void get_answer(unsigned char *res, int *res_i) {
     // We should be reading the whole size of rd_length
     get_name(res, *res_i, rd_length);
   }
+  // TODO Add logic for MX and NS
 
   return;
 }
 
 // Get the ip address located at the offset of the response
 char* get_ip(unsigned char *res, int * res_i) {
-  // TODO Complete logi
+  // TODO Complete logic
   char *ip_addr;
   
   //TODO Get this to work for auth/nonauth
@@ -476,10 +482,13 @@ char* get_name(unsigned char *res, int *res_i, int rd_len) {
     }
     else {
       // Increment for the amount we will be reading
+      // Because it is not a poinyer the value will be stored in the 
+      // first index
       read += res[*res_i];
+      // Add the word to name
       add_word(res, &res_i, &name, &name_len);
     }
-    // Add the '.' character
+    // Add the '.' character as long as we are not at the end
     if (read <= rd_len) {
       realloc(name, name_len + 1);
       name[name_len] = '.';
