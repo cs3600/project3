@@ -373,9 +373,9 @@ int is_pointer(unsigned char *res, int *res_i) {
   }
 }
 
-// Given a response and an index into the response
-// Get the answer and print it out
-void get_answer(unsigned char *res, int *res_i) {
+// Given the index to a name (res_i) walk over it to
+// The next segement of the packet (reflected in res_i)
+void walk_name(unsigned char *res, int *res_i) {
   // We want to walk past the name to the good stuff
   // See if this is a pointer
   if (is_pointer(res, res_i)) {
@@ -384,24 +384,33 @@ void get_answer(unsigned char *res, int *res_i) {
   // Else walk to the end of the name...
   else {
     // Names are terminated with a 0 or a pointer
-    // TODO THIS MIGHT BE A BUG
-    // We might only want to check the locations where there
-    // should be a number or poiter than skip ahead to the next
     // If we don't we might get false positives
     while (res[(*res_i)] != 0) {
-      // Check if it is a pointer
+      // Check if it is a pointer, pointer signifies the end of a name
       if (is_pointer(res, res_i)) {
         // Move it along one, will be set to next outside of loop
         (*res_i)++;
         break;
       }
-      // Check the next one
-      (*res_i)++;
+
+      // Not a pointer, must be a number, jump that number of places + 1
+      // ex 3www -> jump to the index after the last w
+      (*res_i) = (*res_i) + res[*res_i] + 1;
     }
     // Move it to the starting index of the object after name
     (*res_i)++;
   }
 
+  return;
+
+}
+
+// Given a response and an index into the response
+// Get the answer and print it out
+void get_answer(unsigned char *res, int *res_i) {
+
+  // Walk over the name to the type segement
+  walk_name(res, res_i); 
   // Get the type of answer
   short type = get_param(res, res_i);
   // Get the class of the answer data

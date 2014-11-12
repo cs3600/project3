@@ -89,6 +89,9 @@ typedef struct request_options_t {
 	char *name;
 } request_options;
 
+// Walk over a name segement to get res_i to point to next segment
+void walk_name(unsigned char *res, int *res_i);
+
 // Returns the Rcode from a given response flag grouping
 short check_response_code(short flags);
 
