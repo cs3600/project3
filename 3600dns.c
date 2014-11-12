@@ -126,10 +126,12 @@ request_options get_request_options(char *arg[]) {
 
 // Sets the given param in the given request packet. 
 // Updates the size of the request packet accordingly.
+// return 0, 
+// return = -1, invalid args to the function
 void set_param(unsigned char **req, int *req_size, short param) {
   // NULL checks
 	if (req == NULL || req_size == NULL) {
-		return; // TODO return error codes
+		return -1;
 	}
 	// update the packet size with the param size
 	int param_size = sizeof(param);
@@ -138,6 +140,7 @@ void set_param(unsigned char **req, int *req_size, short param) {
 	// update the packet
 	(*req)[*req_size - param_size--] = (param >> BYTE_TO_BITS) & 0xFF;
 	(*req)[*req_size - param_size] = param & 0xFF;
+	return 0;
 }
 
 // Sets the given octet in at given place in the given request packet. 
@@ -267,17 +270,33 @@ unsigned short get_param(unsigned char *res, int *res_i) {
 
 // Check the given flag param for invalid response codes or RCODE errors.
 // return 0, on success
-// return -1, TR or !RA
-// return -2, rcode error
+// return -1, TC
+// return -2, !RA
+// return -3, rcode error
 int check_flags(unsigned short flags) {
-
-	// Need to check TD TODO
-	// Need to check !RA TODO
-
+	// TODO get rid of params we do not need to check
+	unsigned char qr = (flags && 0x8000) >> 15; // should be 1
+	unsigned char opcode = (flags && 0x7800) >> 11;
+	unsigned char aa = (flags && 0x400) >> 10;
+	unsigned char tc = (flags && 0x200) >> 9;
+	unsigned char rd = (flags && 0x100) >> 8;
+	unsigned char ra = (flags && 0x80) >> 7;
+	unsigned char z = (flags && 0x70) >> 4;
+  unsigned char rcode = flags & 0x0f;
+	// Need to check TD TODO print error?
+	if (tc) {
+		return -1; 
+	}
+	// Need to check !RA TODO print error?
+	if (ra == 0) {
+		return -2;
+	}
 	//  Check the RCODE
-  if (check_response_code(flags) != 0) {
-    exit(0);
+  if (rcode != 0) {
+  	print_error_code(rcode, aa);
+    return -3;
   }
+  return 0;
 }
 
 // Gets the header in the given response packet.
@@ -287,7 +306,7 @@ int check_flags(unsigned short flags) {
 // return >= 0, ANCOUNT
 // return = -1, invalid args to the function
 // return = -2, invalid query id in the received packet
-// return = -3, invalid flags (TR or !RA) or rcode error
+// return = -3, invalid flags (TC or !RA) or rcode error
 int check_header(unsigned char *res, size_t res_len, int *res_i) {
 	// check input; make sure the incoming packet had enough
 	// bits to contain a header (6 sections of 2 bytes each)
@@ -319,7 +338,7 @@ int check_header(unsigned char *res, size_t res_len, int *res_i) {
 	return ancount;
 }
 
-// Checks RCODE from the flags param.
+// Checks RCODE from the flags param. TODO auth non auth
 // Possible RCODE values:
 //   0  -> No error condition
 //   1  -> Format error (name serve unable to interpret query)
@@ -327,9 +346,7 @@ int check_header(unsigned char *res, size_t res_len, int *res_i) {
 //   3  -> Name error (domain name reference in query does not exist)
 //   4  -> Not Implemented (name server does not support requested query type)
 //   5  -> Refused (name server refuses op, policy reasons)
-unsigned short check_response_code(unsigned short flags) {
-  // Capture the RCDOE (last 4 bits of flags)
-  unsigned short rcode = flags & 0x0f;
+void print_error_code(unsigned char rcode, unsigned char aa) {
   // Handle possible errors
   if (rcode == 1) {
     printf("ERROR \t RCODE - Format Error\n");
@@ -337,7 +354,7 @@ unsigned short check_response_code(unsigned short flags) {
   else if (rcode == 2) {
     printf("ERROR \t RCODE - Server Failure\n");
   }
-  else if (rcode == 3) {
+  else if (rcode == 3 && aa) {
     printf("NOTFOUND\n");
   }
   else if (rcode == 4) {
@@ -349,7 +366,6 @@ unsigned short check_response_code(unsigned short flags) {
   else if (rcode > 5) {
     printf("ERROR\t RCODE - Unknown\n");
   }
-  return rcode;
 }
 
 // Is the value at the given index in the response a pointer
@@ -442,6 +458,7 @@ char* get_ip(unsigned char *res, int * res_i) {
   //TODO Get this to work for auth/nonauth
   printf("IP \t %s auth", ip_addr);
 }
+
 // Given a response and starting location
 // Read the response and append it to the given string 'name'
 void add_word(unsigned char *res, int *res_i, char *name, int *name_len) {
@@ -460,7 +477,7 @@ void add_word(unsigned char *res, int *res_i, char *name, int *name_len) {
   *name_len = *name_len + len;
 }
 
-// This method will go throught he RDATA and capture the name
+// This method will go through the RDATA and capture the name
 // that is stored at the location beggining at res[*res_i}
 // This will have to handle being redirected by pointers
 char* get_name(unsigned char *res, int *res_i, int rd_len) {
@@ -521,21 +538,13 @@ char* get_name(unsigned char *res, int *res_i, int rd_len) {
 // The param res_len must be an int pointer to the length of the response packet.
 // The param req should be a pointer to a request packet.
 // The param req_len must be an int pointer to the length of the request packet.
-// 
-// TODO this function is disgusting, Just print the deconstructed response in this
-// function. Better thing to do would be to return the deconstructed response,
-// however that could entail some serious pointer madness. There could be 
-// multiple responses and that means we would be returning an array (a pointer)
-// to a bunch of strings (more pointers). A simplification of this is that
-// we can assume that what we are return are an array of null terminated strings
-// meaning we don't need to return the size of each string because we can get it
-// via strlen(). However, we would need to return the length of the returned array
-// which would require adding another parameter. This would make us have 5 params
-// which is pretty bulky and ugly looking.
-void print_dns_response(unsigned char *res, size_t res_len, unsigned char *req, int req_len) {
+//
+// returns -1, invalid input; null pointers
+// returns -2, invalid header
+int print_dns_response(unsigned char *res, size_t res_len, unsigned char *req, int req_len) {
 	// valid input checks
 	if (res == NULL || req == NULL) {
-		return; // TODO return error code
+		return -1;
 	}
 
 	// the index into the response array that we are currently looking at
@@ -544,7 +553,7 @@ void print_dns_response(unsigned char *res, size_t res_len, unsigned char *req, 
   int num_answers = 0;
 	// check the DNS header; its invalid if return is < 0
 	if (num_answers = check_header(res, res_len, &res_i) < 0) {
-		return; // TODO return error code
+		return -2;
 	}
 
 	// we want to check the question to see if it matches the request packet's question
@@ -587,8 +596,9 @@ int main(int argc, char *argv[]) {
 
   // send the DNS request (and call dump_packet with your request)
   if (sendto(sock, request, request_len, 0, &out, sizeof(out)) < 0) {
+  	printf("ERROR SENDING PACKET\n");
     // an error occurred
-    return -1; // TODO CONFIRM THIS BEHAVIOR
+    return -1;
   }
 
   // wait for the DNS reply (timeout: 5 seconds)
@@ -609,14 +619,15 @@ int main(int argc, char *argv[]) {
   int response_size;
   unsigned char response[MAX_RESPONSE_SIZE];
   if (select(sock + 1, &socks, NULL, NULL, &t)) {
-    if (response_size = recvfrom(sock, response, MAX_RESPONSE_SIZE, 0, &in, &in_len) < 0) {
+    if ((response_size = recvfrom(sock, response, MAX_RESPONSE_SIZE, 0, &in, &in_len)) < 0) {
+  	  printf("ERROR RECEIVING PACKET\n");
       // an error occurred
-      return -3; // TODO confirm this behavior
+      return response_size;
     }
   } else {
     // a timeout occurred
     printf("NORESPONSE\n");
-    return -2; // TODO confirm this behavior
+    return -2;
   }
 
 	// print the answer from the response if it is a valid response to the request

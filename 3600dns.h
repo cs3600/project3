@@ -93,8 +93,7 @@ typedef struct request_options_t {
 	char *name;
 } request_options;
 
-// Returns the Rcode from a given response flag grouping
-unsigned short check_response_code(unsigned short flags);
+void print_error_code(unsigned char rcode, unsigned char aa);
 
 // Get an answer given res and the index into res (res_i)
 void get_answer(unsigned char *res, int *res_i);
