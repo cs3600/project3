@@ -467,8 +467,8 @@ char* get_ip(unsigned char *res, int * res_i) {
   (*res_i)++;
 
   // Capture the four numbers for the ip
-  for (int i = 0; i < 4; i++) [
-    ip[i] = res[(*res_i_)++];
+  for (int i = 0; i < 4; i++) {
+    ip[i] = res[(*res_i)++];
   }
   // TODO Assuming this is 0 terminated, skip over it
   (*res)++;
