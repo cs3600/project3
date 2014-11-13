@@ -371,15 +371,16 @@ void print_error_code(unsigned char rcode, unsigned char aa) {
 
 // Is the value at the given index in the response a pointer
 // Return the address of the pointer or 0, if not pointer
-int is_pointer(unsigned char *res, int *res_i) { // why pass res_i pointer if not modifying?TODO
+int is_pointer(unsigned char *res, int *res_i) { 
   // Get the location where the pointer would be
   int val = res[*res_i];
   int idx = *res_i;
+  // This should reprsent the top two bits where pointer would be
   int pointer = val >> 6;
 
   // if the last two bits are both 1's it is a pointer
   if (pointer == 3) {
-    // capture the offset
+    // Capture the first part of the offset
     short offset = res[idx++];
     // Remove the top two bits
     offset &= 0x3f;
@@ -401,9 +402,10 @@ void walk_name(unsigned char *res, int *res_i) {
   // We want to walk past the name to the good stuff
   // See if this is a pointer
   if (is_pointer(res, res_i)) {
-    *res_i = (*res_i) + 2; // change to += TODO
+    // skip over the pointer
+    (*res_i) += 2;
   }
-  // Else walk to the end of the name...
+  // Else walk to the end of the name
   else {
     // Names are terminated with a 0 or a pointer
     // If we don't we might get false positives
@@ -414,57 +416,44 @@ void walk_name(unsigned char *res, int *res_i) {
         (*res_i)++;
         break;
       }
-
       // Not a pointer, must be a number, jump that number of places + 1
       // ex 3www -> jump to the index after the last w
-      (*res_i) = (*res_i) + res[*res_i] + 1;
+      (*res_i) += res[*res_i] + 1;
     }
     // Move it to the starting index of the object after name
     (*res_i)++;
   }
-
-  return;
-
 }
 
 // Given a response and an index into the response
 // Get the answer and print it out TODO comment on aa
 void get_answer(unsigned char *res, int *res_i, unsigned int aa) {
-
   // Walk over the name to the type segement
   walk_name(res, res_i); 
   // Get the type of answer
   short type = get_param(res, res_i);
-  // Get the class of the answer data
-  short class = get_param(res, res_i);  
   
-  // Get past TIL (4 bytes)
-  short til = get_param(res, res_i);
-  til = get_param(res, res_i);
-  // Capture RDLENGTH
-  short rd_length = get_param(res, res_i);
+  // Get past Class (2 bytes), TIL (4 bytes) and RDLENGTH (2 bytes)
+  (*res_i) += 8;
+
   // 'A' Record, spit out IP (exactly 4 octets)
   if (type == 1) {
     // We should be at the beginning of RDATA
     // We should only be reading the 4 octets
     get_ip(res, res_i, aa);
   }
-  // CNAME -> read it
-  // TODO Recycle the code from the top to actually get the name
+  // "CNAME' Record, spit out the CNAME (abitrary length)
   else if (type == 5) {
     // We should be reading the whole size of rd_length
-    get_name(res, res_i, rd_length, aa);
+    get_name(res, res_i, aa);
   }
   // TODO Add logic for MX and NS
-
-  return;
 }
 
 // Get the ip address located at the offset of the response
-char* get_ip(unsigned char *res, int * res_i, unsigned int aa) {
-  // TODO Complete logic
+void get_ip(unsigned char *res, int * res_i, unsigned int aa) {
+  //  This will store the four integers comprising the IP 
   int ip[4];
-
   // Capture the four numbers for the ip
   for (int i = 0; i < 4; i++) {
     ip[i] = res[(*res_i)++];
@@ -484,10 +473,8 @@ char* get_ip(unsigned char *res, int * res_i, unsigned int aa) {
 // Given a response and starting location
 // Read the response and append it to the given string 'name'
 void add_word(unsigned char *res, int *res_i, char **name, int *name_len) {
-
   // Get the length of the word we are going to add
   int len = res[(*res_i)++];
-
   // Make name big enough to hold the new word
   *name = realloc(*name, ((*name_len) + len));
   // Copy new word into name
@@ -495,17 +482,17 @@ void add_word(unsigned char *res, int *res_i, char **name, int *name_len) {
     // Copy one character at a time
     (*name)[(*name_len) + i] = res[(*res_i)++];
   }
-  // Update the name_len
-  *name_len = (*name_len) + len;
+  // Update the name_len to reflect the added word
+  (*name_len) += len;
 }
 
 // This method will go through the RDATA and capture the name
 // that is stored at the location beggining at res[*res_i}
 // This will have to handle being redirected by pointers
-char* get_name(unsigned char *res, int *res_i, int rd_len, unsigned int aa) {
-  // TODO Check if pointer, send it through that logic
-  // Otherwise call add_word
+void get_name(unsigned char *res, int *res_i, unsigned int aa) {
+  // Set up the name we will print
   char *name = NULL;
+  // starts a 0, increment as we add words
   int name_len = 0;
   // index we will read next from to get a word in res
   int read_idx  = *res_i;
@@ -528,7 +515,7 @@ char* get_name(unsigned char *res, int *res_i, int rd_len, unsigned int aa) {
       // Increment for pointer and location if this is the first pointer found
       if (pointer_found == 0) {
         // This signifies the end of RDATA
-        *res_i = (*res_i) + 2;
+        (*res_i) += 2;
         pointer_found = 1; 
       }
       // Otherwise we already found the first pointer and
@@ -542,20 +529,18 @@ char* get_name(unsigned char *res, int *res_i, int rd_len, unsigned int aa) {
         // Add the number relevant to chars to be read, and then one more
         // to get past the last char in the chars read
         // ex 3www -> we want to get to the index directly after the last 'w'
-        (*res_i) = (*res_i) + res[read_idx] + 1;
+        (*res_i) += res[read_idx] + 1;
       }
 
       // Add the word to name
       add_word(res, &read_idx, &name, &name_len);
-      
-      
     }
+
     // Add the '.' character as long as we are not at the end
     realloc(name, name_len + 1);
     name[name_len] = '.';
     name_len++;
   }
-
   // Null terminate the name,
   //  which also get's rid of the extra '.' at the end
   name[name_len-1] = '\0';
@@ -577,7 +562,7 @@ char* get_name(unsigned char *res, int *res_i, int rd_len, unsigned int aa) {
 // return -2.
 // return 0 on success.
 // TODO comment on params
-int check_question(unsigned char *res, size_t res_len, int *res_i, unsigned char *req, int req_len) {
+int check_question(unsigned char *res, size_t res_len, int *res_i) {
   // TODO we want to skip header size into the request packet
 	if (*res_i != (6 * 2)) {
 		return -1;
@@ -602,9 +587,9 @@ int check_question(unsigned char *res, size_t res_len, int *res_i, unsigned char
 //
 // returns -1, invalid input; null pointers
 // returns -2, invalid header
-int print_dns_response(unsigned char *res, size_t res_len, unsigned char *req, int req_len) {
+int print_dns_response(unsigned char *res, size_t res_len) {
 	// valid input checks
-	if (res == NULL || req == NULL) {
+	if (res == NULL) {
 		return -1;
 	}
 
@@ -619,12 +604,11 @@ int print_dns_response(unsigned char *res, size_t res_len, unsigned char *req, i
 		return -2;
 	}
 
-
 	// we want to check the question to see if it matches the request packet's question
 	// res_i should be a pointer the start of the question
-	check_question(res, res_len, &res_i, req, req_len);
+	check_question(res, res_len, &res_i);
 
-  // Capture all of the answers...
+  // Capture all of the answers
   for (int i = 0; i < num_answers; i++) {
     get_answer(res, &res_i, aa);
   }
@@ -693,7 +677,7 @@ int main(int argc, char *argv[]) {
   }
 
 	// print the answer from the response if it is a valid response to the request
-  if (print_dns_response(response, response_size, request, request_len)) {
+  if (print_dns_response(response, response_size)) {
   	return -3;
 	}
 
