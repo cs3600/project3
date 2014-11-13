@@ -91,7 +91,7 @@ request_options get_request_options(int argc, char *arg[]) {
 
   // ./3600dns [-ns|-mx] @<server:port> <name>
   if (!(argc == 3 || argc == 4)) {
-  	printf("Usage: ./3600dns @<server:port> <name>\n");
+  	printf("ERROR\tUsage: ./3600dns @<server:port> <name>\n");
   	return opts;
 	}
 
@@ -108,8 +108,8 @@ request_options get_request_options(int argc, char *arg[]) {
 		}
 		// invalid flag / input is not in the correct order
 		else {
-  	  printf("Usage: ./3600dns [-ns|-mx] @<server:port> <name>\n");
-  	  printf("[-ns|-mx] are the only supported flags\n");
+  	  printf("ERROR\tUsage: ./3600dns [-ns|-mx] @<server:port> <name>\n\
+  	  		[-ns|-mx] are the only supported flags\n");
 			return opts;
 		}
 		// done checking flags
@@ -142,8 +142,8 @@ request_options get_request_options(int argc, char *arg[]) {
 
 	// invalid ip address for server
 	if (server_len > IP_LEN) {
-  	printf("Usage: ./3600dns [-ns|-mx] @<server:port> <name>\n");
-  	printf("<server> should be a valid IP address\n");
+  	printf("ERROR\tUsage: ./3600dns [-ns|-mx] @<server:port> <name>\n\
+  			<server> should be a valid IP address\n");
 		return opts;
 	}
 
@@ -359,12 +359,12 @@ int check_flags(unsigned short flags, unsigned int *aa) {
   unsigned char rcode = flags & 0x0f;
 	// need to check TD
 	if (tc) {
-		printf("TRUNCATED\n");
+		printf("ERROR\tTruncated response\n");
 		return -1; 
 	}
 	// need to check !RA
 	if (ra == 0) {
-		printf("RECURSION NOT AVAILABLE\n");
+		printf("ERROR\tRecursion not available\n");
 		return -2;
 	}
 	// check the RCODE
@@ -426,22 +426,22 @@ int check_header(unsigned char *res, size_t res_len, size_t *res_i, unsigned int
 void print_error_code(unsigned char rcode) {
   // Handle possible errors
   if (rcode == 1) {
-    printf("ERROR \t RCODE - Format Error\n");
+    printf("ERROR\tRCODE - Format Error\n");
   }
   else if (rcode == 2) {
-    printf("ERROR \t RCODE - Server Failure\n");
+    printf("ERROR\tRCODE - Server Failure\n");
   }
   else if (rcode == 3) {
     printf("NOTFOUND\n");
   }
   else if (rcode == 4) {
-    printf("ERROR \t RCODE - Not Implemented\n");
+    printf("ERROR\tRCODE - Not Implemented\n");
   }
   else if (rcode == 5) {
-    printf("ERROR \t RCODE - Refused\n");
+    printf("ERROR\tRCODE - Refused\n");
   }
   else if (rcode > 5) {
-    printf("ERROR\t RCODE - Unknown\n");
+    printf("ERROR\tRCODE - Unknown\n");
   }
 }
 
@@ -708,7 +708,7 @@ int main(int argc, char *argv[]) {
 
   // send the DNS request (and call dump_packet with your request)
   if (sendto(sock, request, request_len, 0, &out, sizeof(out)) < 0) {
-  	printf("ERROR SENDING PACKET\n");
+  	printf("ERROR\tFailed to send packet\n");
     // an error occurred
     return -1;
   }
@@ -732,7 +732,7 @@ int main(int argc, char *argv[]) {
   unsigned char response[MAX_RESPONSE_SIZE];
   if (select(sock + 1, &socks, NULL, NULL, &t)) {
     if ((response_size = recvfrom(sock, response, MAX_RESPONSE_SIZE, 0, &in, &in_len)) < 0) {
-  	  printf("ERROR RECEIVING PACKET\n");
+  	  printf("ERROR\tFailed to receive packet\n");
       // an error occurred
       return response_size;
     }
