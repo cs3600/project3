@@ -77,17 +77,22 @@
 // 6 fields * 16 bits/field = 96 bits = 12 bytes
 #define TOTAL_HEADER_BYTES 12
 
+// The number of characters in an IP address
+#define IP_LEN 16
+
 // Represents the requested server ip,
 // port number, and domain name in a
 // logical structure.
 typedef struct request_options_t {
+	// are these options valid?
+	unsigned int valid:1;
 	// server ip address
 	// 2^32 ip addresses in IPv4
 	// 255.255.255.255/0, 16 bits worst case
-	char server[16];
+	char server[IP_LEN];
 	// the port number
 	// 2^16 ports
-	short port;
+	unsigned short port;
 	// the domain name
 	// technically could be infinitely long
 	char *name;

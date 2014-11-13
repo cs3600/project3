@@ -105,14 +105,20 @@ request_options get_request_options(char *arg[]) {
 			break;
 		}
 	}
+
+	// invalid ip address for server
+	if (server_len > IP_LEN) {
+		opts.valid = 0;
+	}
+
 	// get the server; null term the last char
 	strncpy(opts.server, a1, server_len);
-	opts.server[server_len - 1] = '\0';
+	opts.server[server_len] = '\0';
 	//get the port if specified
 	if (port_len) {
 		char port[port_len+1]; //+1 for '/0'
 	  strncpy(port, a1+server_len+1, port_len);
-	  opts.port = (short) atoi(port);
+	  opts.port = (unsigned short) atoi(port);
 	}
 	// no port specified, default is 53
 	else {
@@ -120,7 +126,8 @@ request_options get_request_options(char *arg[]) {
 	}
 	// get the name
 	opts.name = arg[2];
-	// return the options
+	// return the valid options
+	opts.valid = 1;
 	return opts;
 }
 
@@ -633,11 +640,18 @@ int print_dns_response(unsigned char *res, size_t res_len, unsigned char *req, i
 int main(int argc, char *argv[]) {
   // ./3600dns @<server:port> <name>
   if (argc != 3) {
-  	printf("Usage: ./3600dns @<server:port> <name>");
+  	printf("Usage: ./3600dns @<server:port> <name>\n");
   	return -1;
 	}
   // process the arguments
   request_options opts = get_request_options(argv);
+
+	// invalid args
+	if (!opts.valid) {
+  	printf("Usage: ./3600dns @<server:port> <name>\n");
+  	printf("Usage: <server> should be a valid IP address and port should be a valid port\n");
+		return -1;
+	}
 
   // construct the DNS request
   int request_len = 0;
@@ -654,6 +668,7 @@ int main(int argc, char *argv[]) {
   struct sockaddr_in out;
   out.sin_family = AF_INET;
   out.sin_port = htons(opts.port);
+  // get the server name
   out.sin_addr.s_addr = inet_addr(opts.server);
 
   // send the DNS request (and call dump_packet with your request)
