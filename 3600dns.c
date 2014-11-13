@@ -82,10 +82,44 @@ static void dump_packet(unsigned char *data, int size) {
 }
 
 // Get the request options.
-// ./3600dns @<server:port> <name>
-request_options get_request_options(char *arg[]) {
+// ./3600dns [-ns|-mx] @<server:port> <name>
+request_options get_request_options(int argc, char *arg[]) {
 	// the request options to return
 	request_options opts;
+	// are the options valid?
+	opts.valid = 0;
+
+  // ./3600dns [-ns|-mx] @<server:port> <name>
+  if (!(argc == 3 || argc == 4)) {
+  	printf("Usage: ./3600dns @<server:port> <name>\n");
+  	return opts;
+	}
+
+	// check for -ns|-mx flags
+	if (argc == 4) {
+		char *flag = arg[1];
+		// ns record query
+		if (strcmp(flag, "-ns") == 0) {
+			opts.qtype = 0x0002;
+		}
+		// mx record query
+		else if (strcmp(flag, "-mx") == 0) {
+			opts.qtype = 0x000f;
+		}
+		// invalid flag / input is not in the correct order
+		else {
+  	  printf("Usage: ./3600dns [-ns|-mx] @<server:port> <name>\n");
+  	  printf("[-ns|-mx] are the only supported flags\n");
+			return opts;
+		}
+		// done checking flags
+		arg++;
+	}
+	// default qtype
+	else {
+		opts.qtype = 0x0001;
+	}
+
 	// get the server and port
 	char *a1 = arg[1];
 	// length of <@server:port>
@@ -108,7 +142,9 @@ request_options get_request_options(char *arg[]) {
 
 	// invalid ip address for server
 	if (server_len > IP_LEN) {
-		opts.valid = 0;
+  	printf("Usage: ./3600dns [-ns|-mx] @<server:port> <name>\n");
+  	printf("<server> should be a valid IP address\n");
+		return opts;
 	}
 
 	// get the server; null term the last char
@@ -619,18 +655,11 @@ int print_dns_response(unsigned char *res, size_t res_len) {
 }
 
 int main(int argc, char *argv[]) {
-  // ./3600dns @<server:port> <name>
-  if (argc != 3) {
-  	printf("Usage: ./3600dns @<server:port> <name>\n");
-  	return -1;
-	}
   // process the arguments
-  request_options opts = get_request_options(argv);
+  request_options opts = get_request_options(argc, argv);
 
 	// invalid args
 	if (!opts.valid) {
-  	printf("Usage: ./3600dns @<server:port> <name>\n");
-  	printf("Usage: <server> should be a valid IP address and port should be a valid port\n");
 		return -1;
 	}
 

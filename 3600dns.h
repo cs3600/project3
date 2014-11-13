@@ -86,6 +86,8 @@
 typedef struct request_options_t {
 	// are these options valid?
 	unsigned int valid:1;
+	// query type 
+	unsigned short qtype;
 	// server ip address
 	// 2^32 ip addresses in IPv4
 	// 255.255.255.255/0, 16 bits worst case
@@ -94,7 +96,6 @@ typedef struct request_options_t {
 	// 2^16 ports
 	unsigned short port;
 	// the domain name
-	// technically could be infinitely long
 	char *name;
 } request_options;
 
