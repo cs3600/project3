@@ -11,7 +11,8 @@ From here we construct a packet using the name specified in the command line.
 We break up construction of the packet into logical parts. We set the header
 and then we set the question.
 
-When setting the header, we add each of the 5 16-bit fields.
+When setting the header, we add each of the 5 16-bit fields. We add the
+qtype from the command line options (A/CNAME by default).
 
 When setting the question, we add the QNAME, and then the two remaining 16-bit
 fields. The adding of the QNAME is broken off into its own logical component.
@@ -21,6 +22,16 @@ encounter the end of the name (which also marks the end of the last token)
 we add the final token and add the end of QNAME octet.
 
 We add the server IP and port (if specified) to our destination address.
+
+When reading a response a packet, we check for valid headers and retain
+necessary information (such as AA and ANCOUNT). We skip the question section
+to get to the start of the answers section. We have a method to parse
+and print a response for each answer. This handles the different answer
+types (i.e. MX/NS/A/CNAME). The process for this is to walk over the
+name section of each answer to get to the type. We then walk over the
+extraneous data to get to RDLENGTH; after this we are at RDATA. Depending
+on the type we read, we parse RDATA differently. We add RDLENGTH to our
+pointer into the packet.
 
 ******************************************************************************
 Challenges
@@ -33,6 +44,7 @@ Following pointers in compressed response packets.
 Features / Properties
 ******************************************************************************
 Good abstraction and code reusability.
+Error Handling.
 
 ******************************************************************************
 Tests

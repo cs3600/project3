@@ -168,16 +168,19 @@ request_options get_request_options(int argc, char *arg[]) {
 }
 
 // Sets the given param in the given request packet. 
+// The param req should be a pointer to a NULL pointer.
+// The param req_size must be an int pointer to 0.
+// The param param is the param to set.
 // Updates the size of the request packet accordingly.
-// return 0, 
+// return 0, on success 
 // return = -1, invalid args to the function
-void set_param(unsigned char **req, int *req_size, short param) { //TODO make unsigned
+int set_param(unsigned char **req, size_t *req_size, unsigned short param) {
   // NULL checks
 	if (req == NULL || req_size == NULL) {
 		return -1;
 	}
 	// update the packet size with the param size
-	int param_size = sizeof(param);
+	size_t param_size = sizeof(param);
 	*req_size += param_size;
 	*req = (unsigned char *) realloc(*req, *req_size);
 	// update the packet
@@ -187,41 +190,53 @@ void set_param(unsigned char **req, int *req_size, short param) { //TODO make un
 }
 
 // Sets the given octet in at given place in the given request packet. 
+// The param req should be a pointer to a NULL pointer.
+// The param req_size must be an int pointer to 0.
+// The param octet is the octet to set.
 // Updates the size of the request packet accordingly.
-void set_octet(unsigned char **req, int *req_size, unsigned char octet) {
+// return 0, on success 
+// return = -1, invalid args to the function
+int set_octet(unsigned char **req, size_t *req_size, unsigned char octet) {
   // NULL checks
 	if (req == NULL || req_size == NULL) {
-		return; // TODO return error codes
+		return -1;
 	}
 	// update the packet size with the octet size
-	int octet_size = sizeof(octet);
+	size_t octet_size = sizeof(octet);
 	*req_size += octet_size;
 	*req = (unsigned char *) realloc(*req, *req_size);
 	// update the packet
 	(*req)[*req_size - octet_size] = octet & 0xFF;
+	return 0;
 }
 
 // Sets the QNAME of the question in the given request packet.
 // Updates the size of the request packet accordingly.
-void set_qname(unsigned char **req, int *req_size, char *name) {
+// The param req should be a pointer to a NULL pointer.
+// The param req_size must be an int pointer to 0.
+// The param name is the QNAME of the packet.
+// The param *req will contain the packet of size *req_size.
+// return 0, on success 
+// return = -1, invalid args to the function
+int set_qname(unsigned char **req, size_t *req_size, char *name) {
   // NULL checks
 	if (req == NULL || *req == NULL || req_size == NULL || *req_size == 0 || name == NULL) {
-		return; // TODO return error codes
+		return -1;
 	}
 	//get each . delimited token and add each token's length
 	// followed by the token to the packet.
-	int name_len = strlen(name) + 1;
-	int token_start_idx = 0;
-	int token_end_idx = 0;
-	int token_len = 0;
-  for (int i = 0; i < name_len; i++) {
+	size_t name_len = strlen(name) + 1;
+	size_t token_start_idx = 0;
+	size_t token_end_idx = 0;
+	size_t token_len = 0;
+  for (size_t i = 0; i < name_len; i++) {
   	// we hit the end of a token
   	// add its length to the packet
   	if (name[i] == '.' || name[i] == '\0') {
       set_octet(req, req_size, (unsigned char) token_len);
       token_end_idx = token_start_idx + token_len;
       // add each octet (char/byte) from the token
-      for (int j = token_start_idx; j < token_end_idx; j++) {
+      for (size_t j = token_start_idx; j < token_end_idx; j++) {
       	set_octet(req, req_size, (unsigned char) name[j]);
 			}
 			// update the start index of to the next token
@@ -234,45 +249,57 @@ void set_qname(unsigned char **req, int *req_size, char *name) {
 	}
 	// mark the end of the question
 	set_octet(req, req_size, (unsigned char) 0);
+	return 0;
 }
 
 // Sets the question in the given request packet.
+// The param name is the QNAME of the packet.
+// The param qtype is the QTYPE of the packet.
+// The param req should be a pointer to a NULL pointer.
+// The param req_size must be an int pointer to 0.
+// The param *req will contain the packet of size *req_size.
 // Updates the size of the request packet accordingly.
-void set_question(char *name, unsigned short qtype, unsigned char **req, int *req_size) {
+// return 0, on success 
+// return = -1, invalid args to the function
+int set_question(char *name, unsigned short qtype, unsigned char **req, size_t *req_size) {
   // NULL checks
 	if (req == NULL || *req == NULL || req_size == NULL || *req_size == 0 || name == NULL) {
-		return; // TODO return error codes
+		return -1;
 	}
 	// set QNAME
 	set_qname(req, req_size, name);
 	// set QTYPE
 	set_param(req, req_size, qtype);
 	// set QCLASS
-	set_param(req, req_size, (short) QCLASS_CODE);
+	set_param(req, req_size, (unsigned short) QCLASS_CODE);
+	return 0;
 }
 
 // Sets the header in the given request packet.
 // The param req should be a pointer to a NULL pointer.
 // The param req_size must be an int pointer to 0.
 // Updates the size of the request packet accordingly.
-void set_header(unsigned char **req, int *req_size) {
+// return 0, on success 
+// return = -1, invalid args to the function
+int set_header(unsigned char **req, size_t *req_size) {
 	// only null pointers allowed so *req ends up being a newly malloced string. 
 	if (req == NULL || *req != NULL || req_size == NULL || *req_size != 0) {
-		return; // TODO return error codes
+		return -1;
 	}
 
 	// set ID
-	set_param(req, req_size, (short) ID);
+	set_param(req, req_size, (unsigned short) ID);
 	// set flags
-	set_param(req, req_size, (short) FLAG_CODE);
+	set_param(req, req_size, (unsigned short) FLAG_CODE);
 	// set QDCOUNT
-	set_param(req, req_size, (short) QD_CODE);
+	set_param(req, req_size, (unsigned short) QD_CODE);
 	// set ANCOUNT
-	set_param(req, req_size, (short) AN_CODE);
+	set_param(req, req_size, (unsigned short) AN_CODE);
 	// set NSCOUNT
-	set_param(req, req_size, (short) NS_CODE);
+	set_param(req, req_size, (unsigned short) NS_CODE);
 	// set ARCOUNT
-	set_param(req, req_size, (short) AR_CODE);
+	set_param(req, req_size, (unsigned short) AR_CODE);
+	return 0;
 }
 
 // Creates a dns request packet. 
@@ -281,26 +308,29 @@ void set_header(unsigned char **req, int *req_size) {
 // The param req should be a pointer to a NULL pointer.
 // The param req_size must be an int pointer to 0.
 // The param *req will contain the packet of size *req_size.
-void create_dns_request(char *name, unsigned short qtype, unsigned char **req, int *req_size) {
+// return 0, on success 
+// return = -1, invalid args to the function
+int create_dns_request(char *name, unsigned short qtype, unsigned char **req, size_t *req_size) {
 	// only null pointers allowed so *req ends up being a newly malloced string. 
 	if (req == NULL || *req != NULL || req_size == NULL || *req_size != 0) {
-		return; // TODO return error codes
+		return -1;
 	}
 
 	// set the DNS header
 	set_header(req, req_size);
 	// set the DNS question
 	set_question(name, qtype, req, req_size);
+	return 0;
 }
 
-// Gets the next param in the given response packet. 
+// Gets the next param in the given response packet at the given index. 
 // A param is two bytes/octets.
-unsigned short get_param(unsigned char *res, int *res_i) {
-	// TODO update comments about res_i
-	// we need to also check the size of param for out of bounds
+// return param, on success 
+// return = -1, invalid args to the function
+unsigned short get_param(unsigned char *res, size_t *res_i) {
   // NULL checks
 	if (res == NULL || *res == NULL) {
-		return; // TODO return error codes
+		return -1; // FIXME well, this may not work
 	}
 	// initialize the param to 0
 	unsigned short param = 0;
@@ -313,6 +343,7 @@ unsigned short get_param(unsigned char *res, int *res_i) {
 }
 
 // Check the given flag param for invalid response codes or RCODE errors.
+// Updates the param aa to reflect the AA flag.
 // return 0, on success
 // return -1, TC
 // return -2, !RA
@@ -338,7 +369,7 @@ int check_flags(unsigned short flags, unsigned int *aa) {
 	}
 	// check the RCODE
   if (rcode != 0) {
-  	print_error_code(rcode, aa);
+  	print_error_code(rcode);
     return -3;
   }
   return 0;
@@ -352,7 +383,7 @@ int check_flags(unsigned short flags, unsigned int *aa) {
 // return = -1, invalid args to the function
 // return = -2, invalid query id in the received packet
 // return = -3, invalid flags (TC or !RA) or rcode error
-int check_header(unsigned char *res, size_t res_len, int *res_i, unsigned int *aa) {
+int check_header(unsigned char *res, size_t res_len, size_t *res_i, unsigned int *aa) {
 	// check input; make sure the incoming packet had enough
 	// bits to contain a header (6 sections of 2 bytes each)
 	if (res == NULL || *res_i != 0) {
@@ -383,7 +414,8 @@ int check_header(unsigned char *res, size_t res_len, int *res_i, unsigned int *a
 	return ancount;
 }
 
-// Checks RCODE from the flags param. TODO do we need AA?
+// Checks the given rcode param for errors and prints the
+// right error out.
 // Possible RCODE values:
 //   0  -> No error condition
 //   1  -> Format error (name serve unable to interpret query)
@@ -391,7 +423,7 @@ int check_header(unsigned char *res, size_t res_len, int *res_i, unsigned int *a
 //   3  -> Name error (domain name reference in query does not exist)
 //   4  -> Not Implemented (name server does not support requested query type)
 //   5  -> Refused (name server refuses op, policy reasons)
-void print_error_code(unsigned char rcode, unsigned char aa) {
+void print_error_code(unsigned char rcode) {
   // Handle possible errors
   if (rcode == 1) {
     printf("ERROR \t RCODE - Format Error\n");
@@ -415,10 +447,10 @@ void print_error_code(unsigned char rcode, unsigned char aa) {
 
 // Is the value at the given index in the response a pointer
 // Return the address of the pointer or 0, if not pointer
-int is_pointer(unsigned char *res, int *res_i) { 
+int is_pointer(unsigned char *res, size_t *res_i) { 
   // Get the location where the pointer would be
-  int val = res[*res_i];
-  int idx = *res_i;
+  size_t val = res[*res_i];
+  size_t idx = *res_i;
   // This should reprsent the top two bits where pointer would be
   int pointer = val >> 6;
 
@@ -442,7 +474,7 @@ int is_pointer(unsigned char *res, int *res_i) {
 
 // Given the index to a name (res_i) walk over it to
 // The next segement of the packet (reflected in res_i)
-void walk_name(unsigned char *res, int *res_i) {
+void walk_name(unsigned char *res, size_t *res_i) {
   // We want to walk past the name to the good stuff
   // See if this is a pointer
   if (is_pointer(res, res_i)) {
@@ -470,8 +502,9 @@ void walk_name(unsigned char *res, int *res_i) {
 }
 
 // Given a response and an index into the response
-// Get the answer and print it out TODO comment on aa
-void get_answer(unsigned char *res, int *res_i, unsigned int aa) {
+// Get the answer and print it out
+// aa is flag that says if res was auth
+void get_answer(unsigned char *res, size_t *res_i, unsigned int aa) {
 
   // Capture the correct string for auth/nonauth
   char *auth = "nonauth";
@@ -516,7 +549,8 @@ void get_answer(unsigned char *res, int *res_i, unsigned int aa) {
 }
 
 // Get the ip address located at the offset of the response
-void get_ip(unsigned char *res, int * res_i, unsigned int aa) {
+// print the correct auth based off of aa flag
+void get_ip(unsigned char *res, size_t *res_i, unsigned int aa) {
   //  This will store the four integers comprising the IP 
   int ip[4];
   // Capture the four numbers for the ip
@@ -534,13 +568,13 @@ void get_ip(unsigned char *res, int * res_i, unsigned int aa) {
 
 // Given a response and starting location
 // Read the response and append it to the given string 'name'
-void add_word(unsigned char *res, int *res_i, char **name, int *name_len) {
+void add_word(unsigned char *res, size_t *res_i, char **name, size_t *name_len) {
   // Get the length of the word we are going to add
-  int len = res[(*res_i)++];
+  size_t len = res[(*res_i)++];
   // Make name big enough to hold the new word
   *name = realloc(*name, ((*name_len) + len));
   // Copy new word into name
-  for (int i = 0; i < len; i++) {
+  for (size_t i = 0; i < len; i++) {
     // Copy one character at a time
     (*name)[(*name_len) + i] = res[(*res_i)++];
   }
@@ -549,15 +583,15 @@ void add_word(unsigned char *res, int *res_i, char **name, int *name_len) {
 }
 
 // This method will go through the RDATA and capture the name
-// that is stored at the location beggining at res[*res_i}
+// that is stored at the location beginning at res[*res_i}
 // This will have to handle being redirected by pointers
-char* get_name(unsigned char *res, int *res_i, unsigned int aa, unsigned short rd_len) {
+char* get_name(unsigned char *res, size_t *res_i, unsigned int aa, unsigned short rd_len) {
   // Set up the name we will print
   char *name = NULL;
   // starts a 0, increment as we add words
-  int name_len = 0;
+  size_t name_len = 0;
   // index we will read next from to get a word in res
-  int read_idx  = *res_i;
+  size_t read_idx  = *res_i;
   (*res_i) += rd_len;
 
   // Loop through until we have read all of it
@@ -590,15 +624,14 @@ char* get_name(unsigned char *res, int *res_i, unsigned int aa, unsigned short r
   return name;
 }
 
-// Check if the questions in the request and the response packets match.
+// Skips past the question in the response packet.
 // Updates res_i past the question and to the start of the answer.
 // If the res_i pointer is not at the end of the header/start of the 
 // question, return -1.
 // If the request packet and the response packet's names don't match,
 // return -2.
 // return 0 on success.
-// TODO comment on params
-int check_question(unsigned char *res, size_t res_len, int *res_i) {
+int check_question(unsigned char *res, size_t res_len, size_t *res_i) {
   // we want to be header size into the request packet
 	if (*res_i != (6 * 2)) {
 		return -1;
@@ -611,15 +644,11 @@ int check_question(unsigned char *res, size_t res_len, int *res_i) {
   return 0;
 }
 
-// Deconstructs and intreprets a dns response packet. Ensures that the response packet
-// is the response to the given request packet. Prints the answers in the dns response
-// to stdout if everything checks out.
+// Deconstructs and intreprets a dns response packet.
+// Prints the answers in the dns response to stdout if everything checks out.
 //
 // The param res should be a pointer to a response packet.
 // The param res_len must be an int pointer to the length of the response packet.
-// The param req should be a pointer to a request packet.
-// The param req_len must be an int pointer to the length of the request packet.
-// The param qtype is the qtype of the request packet.
 //
 // returns -1, invalid input; null pointers
 // returns -2, invalid header
@@ -634,7 +663,7 @@ int print_dns_response(unsigned char *res, size_t res_len) {
 	// the number of answers we want
   int num_answers;
   // AA flag
-  unsigned int aa = -1;
+  int aa = -1;
 	// check the DNS header; its invalid if return is < 0; or if aa is not set, error
 	if (((num_answers = check_header(res, res_len, &res_i, &aa)) < 0) || aa == -1) {
 		return -2;
@@ -646,7 +675,7 @@ int print_dns_response(unsigned char *res, size_t res_len) {
 
   // Capture all of the answers
   for (int i = 0; i < num_answers; i++) {
-    get_answer(res, &res_i, aa);
+    get_answer(res, &res_i, (unsigned) aa);
   }
 }
 
@@ -660,7 +689,7 @@ int main(int argc, char *argv[]) {
 	}
 
   // construct the DNS request
-  int request_len = 0;
+  size_t request_len = 0;
   unsigned char *request = NULL;
   create_dns_request(opts.name, opts.qtype, &request, &request_len);
 
@@ -699,7 +728,7 @@ int main(int argc, char *argv[]) {
   t.tv_usec = 0;
 
   // wait to receive, or for a timeout
-  int response_size;
+  size_t response_size;
   unsigned char response[MAX_RESPONSE_SIZE];
   if (select(sock + 1, &socks, NULL, NULL, &t)) {
     if ((response_size = recvfrom(sock, response, MAX_RESPONSE_SIZE, 0, &in, &in_len)) < 0) {
