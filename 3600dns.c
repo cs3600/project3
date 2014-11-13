@@ -458,9 +458,6 @@ void get_ip(unsigned char *res, int * res_i, unsigned int aa) {
   for (int i = 0; i < 4; i++) {
     ip[i] = res[(*res_i)++];
   }
-  // TODO Assuming this is 0 terminated, skip over it
-  (*res)++;
-
   // Read the 4 octets 
   if (aa) {
     printf("IP\t%d.%d.%d.%d\tauth\n", ip[0], ip[1], ip[2], ip[3]);
