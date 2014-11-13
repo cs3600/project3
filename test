@@ -13,7 +13,6 @@ if (! (-e "$SOLDIR$SHELL")) {
   error("Unable to find reference solution '$SHELL'.");
 }
 
-
 print "Milestone tests\n";
 my @tries = (	"\@129.10.112.152 joshua.ccs.neu.edu",
                 "\@129.10.112.152 www.ccs.neu.edu",
@@ -39,14 +38,14 @@ my @tries = (	"\@129.10.112.152 joshua.ccs.neu.edu",
                 "\@129.10.112.152:53 slashdot.org",
                 "\@129.10.112.152:54 slashdot.org");
 test($problem, 0, \@tries);
-=cut
+
 print "\nExtra credit tests\n";
 my @tries = (	"-mx \@129.10.112.152 ccs.neu.edu",
                 "-mx \@129.10.112.152 www.ccs.neu.edu",
                 "-ns \@129.10.112.152 ccs.neu.edu",
                 "-ns \@129.10.112.152 slashdot.org");
 test($problem, 0, \@tries);
-=cut
+
 
 sub test {
   my ($problem, $response, $vals) = @_;

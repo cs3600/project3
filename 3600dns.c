@@ -171,7 +171,7 @@ request_options get_request_options(int argc, char *arg[]) {
 // Updates the size of the request packet accordingly.
 // return 0, 
 // return = -1, invalid args to the function
-void set_param(unsigned char **req, int *req_size, short param) {
+void set_param(unsigned char **req, int *req_size, short param) { //TODO make unsigned
   // NULL checks
 	if (req == NULL || req_size == NULL) {
 		return -1;
@@ -238,7 +238,7 @@ void set_qname(unsigned char **req, int *req_size, char *name) {
 
 // Sets the question in the given request packet.
 // Updates the size of the request packet accordingly.
-void set_question(unsigned char **req, int *req_size, char *name) {
+void set_question(char *name, unsigned short qtype, unsigned char **req, int *req_size) {
   // NULL checks
 	if (req == NULL || *req == NULL || req_size == NULL || *req_size == 0 || name == NULL) {
 		return; // TODO return error codes
@@ -246,7 +246,7 @@ void set_question(unsigned char **req, int *req_size, char *name) {
 	// set QNAME
 	set_qname(req, req_size, name);
 	// set QTYPE
-	set_param(req, req_size, (short) QTYPE_CODE);
+	set_param(req, req_size, qtype);
 	// set QCLASS
 	set_param(req, req_size, (short) QCLASS_CODE);
 }
@@ -276,11 +276,12 @@ void set_header(unsigned char **req, int *req_size) {
 }
 
 // Creates a dns request packet. 
+// The param name is the QNAME of the packet.
+// The param qtype is the QTYPE of the packet.
 // The param req should be a pointer to a NULL pointer.
 // The param req_size must be an int pointer to 0.
-// The param name is the QNAME of the packet.
 // The param *req will contain the packet of size *req_size.
-void create_dns_request(char *name, unsigned char **req, int *req_size) {
+void create_dns_request(char *name, unsigned short qtype, unsigned char **req, int *req_size) {
 	// only null pointers allowed so *req ends up being a newly malloced string. 
 	if (req == NULL || *req != NULL || req_size == NULL || *req_size != 0) {
 		return; // TODO return error codes
@@ -289,7 +290,7 @@ void create_dns_request(char *name, unsigned char **req, int *req_size) {
 	// set the DNS header
 	set_header(req, req_size);
 	// set the DNS question
-	set_question(req, req_size, name);
+	set_question(name, qtype, req, req_size);
 }
 
 // Gets the next param in the given response packet. 
@@ -370,14 +371,14 @@ int check_header(unsigned char *res, size_t res_len, int *res_i, unsigned int *a
 		return -3;
 	}
 
-	// get QDCOUNT TODO do we care to check this?
-	unsigned short qdcount = get_param(res, res_i);
+	// skip QDCOUNT
+  get_param(res, res_i);
 	// get ANCOUNT
 	unsigned short ancount = get_param(res, res_i);
-	// get NSCOUNT TODO do we care to check this?
+	// get NSCOUNT
 	unsigned short nscount = get_param(res, res_i);
-	// get ARCOUNT TODO do we care to check this?
-	unsigned short arcount = get_param(res, res_i);
+	// skip ARCOUNT
+  get_param(res, res_i);
 
 	return ancount;
 }
@@ -485,7 +486,8 @@ void get_answer(unsigned char *res, int *res_i, unsigned int aa) {
   short type = get_param(res, res_i);
   
   // Get past Class (2 bytes), TIL (4 bytes) and RDLENGTH (2 bytes)
-  (*res_i) += 8;
+  (*res_i) += 6;
+  unsigned short rd_len = get_param(res, res_i);
 
   // 'A' Record, spit out IP (exactly 4 octets)
   if (type == 1) {
@@ -496,21 +498,21 @@ void get_answer(unsigned char *res, int *res_i, unsigned int aa) {
   // 'CNAME' Record, spit out the CNAME (abitrary length)
   else if (type == 5) {
     // We should be reading the whole size of rd_length
-    char *name = get_name(res, res_i, aa);
+    char *name = get_name(res, res_i, aa, rd_len);
     printf("CNAME\t%s\t%s\n", name, auth);
   }
   // 'NS' Record, spit out the NS 
   else if (type == 2) {
-    char *name = get_name(res, res_i, aa);
+    char *name = get_name(res, res_i, aa, rd_len);
     printf("NS\t%s\t%s\n", name, auth);
   }
   // 'MS' Record. spit out the MS
   else if (type == 15) {
-    int preference = get_param(res, res_i); 
-    char * name = get_name(res, res_i, aa);
+    int preference = get_param(res, res_i);
+    // subtract 2 b/c of preference
+    char * name = get_name(res, res_i, aa, rd_len - 2);
     printf("MX\t%s\t%d\t%s\n", name, preference, auth);
   }
-  // TODO Add logic for MX and NS
 }
 
 // Get the ip address located at the offset of the response
@@ -549,15 +551,14 @@ void add_word(unsigned char *res, int *res_i, char **name, int *name_len) {
 // This method will go through the RDATA and capture the name
 // that is stored at the location beggining at res[*res_i}
 // This will have to handle being redirected by pointers
-char* get_name(unsigned char *res, int *res_i, unsigned int aa) {
+char* get_name(unsigned char *res, int *res_i, unsigned int aa, unsigned short rd_len) {
   // Set up the name we will print
   char *name = NULL;
   // starts a 0, increment as we add words
   int name_len = 0;
   // index we will read next from to get a word in res
   int read_idx  = *res_i;
-  // Signifies if we have found a pointer in RDATA so far
-  int pointer_found = 0;
+  (*res_i) += rd_len;
 
   // Loop through until we have read all of it
   // Should just terminate when we read a 0 as length
@@ -571,33 +572,15 @@ char* get_name(unsigned char *res, int *res_i, unsigned int aa) {
       // Capture the word there, and be set up for the word after it
       // this is reflected in updating read_idx within add_word()
       add_word(res, &read_idx, &name, &name_len);
-
-      // Increment for pointer and location if this is the first pointer found
-      if (pointer_found == 0) {
-        // This signifies the end of RDATA
-        (*res_i) += 2;
-        pointer_found = 1; 
-      }
-      // Otherwise we already found the first pointer and
-      // know the end of RDATA
     }
     // Not at a pointer
     else {
-      // if we haven't already found a pointer to terminate RDATA
-      // increment res_i so it can accurately reflect our location in RDATA
-      if (pointer_found == 0) {
-        // Add the number relevant to chars to be read, and then one more
-        // to get past the last char in the chars read
-        // ex 3www -> we want to get to the index directly after the last 'w'
-        (*res_i) += res[read_idx] + 1;
-      }
-
       // Add the word to name
       add_word(res, &read_idx, &name, &name_len);
     }
 
     // Add the '.' character as long as we are not at the end
-    realloc(name, name_len + 1);
+    name = realloc(name, name_len + 1);
     name[name_len] = '.';
     name_len++;
   }
@@ -616,15 +599,14 @@ char* get_name(unsigned char *res, int *res_i, unsigned int aa) {
 // return 0 on success.
 // TODO comment on params
 int check_question(unsigned char *res, size_t res_len, int *res_i) {
-  // TODO we want to skip header size into the request packet
+  // we want to be header size into the request packet
 	if (*res_i != (6 * 2)) {
 		return -1;
 	}
   walk_name(res, res_i);
-  // TODO actually check the questions, instead of skipping over
-  // get qtype
+  // skip qtype
   get_param(res, res_i);
-  // get qclass
+  // skip qclass
   get_param(res, res_i);
   return 0;
 }
@@ -637,6 +619,7 @@ int check_question(unsigned char *res, size_t res_len, int *res_i) {
 // The param res_len must be an int pointer to the length of the response packet.
 // The param req should be a pointer to a request packet.
 // The param req_len must be an int pointer to the length of the request packet.
+// The param qtype is the qtype of the request packet.
 //
 // returns -1, invalid input; null pointers
 // returns -2, invalid header
@@ -679,7 +662,7 @@ int main(int argc, char *argv[]) {
   // construct the DNS request
   int request_len = 0;
   unsigned char *request = NULL;
-  create_dns_request(opts.name, &request, &request_len);
+  create_dns_request(opts.name, opts.qtype, &request, &request_len);
 
 	// Display request packet contents
   dump_packet(request, request_len);
