@@ -108,7 +108,7 @@ void print_error_code(unsigned char rcode, unsigned char aa);
 void get_answer(unsigned char *res, int *res_i, unsigned int aa);
 
 // Get the name at the given offset, should only be rd_len long
-void get_name(unsigned char *res, int *res_i, unsigned int aa);
+char* get_name(unsigned char *res, int *res_i, unsigned int aa);
 
 // Get the ip address at the given offset of the response
 void get_ip(unsigned char *res, int *res_i, unsigned int aa);

@@ -435,6 +435,14 @@ void walk_name(unsigned char *res, int *res_i) {
 // Given a response and an index into the response
 // Get the answer and print it out TODO comment on aa
 void get_answer(unsigned char *res, int *res_i, unsigned int aa) {
+
+  // Capture the correct string for auth/nonauth
+  char *auth = "nonauth";
+  // Should be auth
+  if (aa) {
+    // It should be auth
+    auth = "auth";
+  }
   // Walk over the name to the type segement
   walk_name(res, res_i); 
   // Get the type of answer
@@ -449,10 +457,22 @@ void get_answer(unsigned char *res, int *res_i, unsigned int aa) {
     // We should only be reading the 4 octets
     get_ip(res, res_i, aa);
   }
-  // "CNAME' Record, spit out the CNAME (abitrary length)
+  // 'CNAME' Record, spit out the CNAME (abitrary length)
   else if (type == 5) {
     // We should be reading the whole size of rd_length
-    get_name(res, res_i, aa);
+    char *name = get_name(res, res_i, aa);
+    printf("CNAME\t%s\t%s\n", name, auth);
+  }
+  // 'NS' Record, spit out the NS 
+  else if (type == 2) {
+    char *name = get_name(res, res_i, aa);
+    printf("NS\t%s\t%s\n", name, auth);
+  }
+  // 'MS' Record. spit out the MS
+  else if (type == 15) {
+    int preference = get_param(res, res_i); 
+    char * name = get_name(res, res_i, aa);
+    printf("MX\t%s\t%d\t%s\n", name, preference, auth);
   }
   // TODO Add logic for MX and NS
 }
@@ -493,7 +513,7 @@ void add_word(unsigned char *res, int *res_i, char **name, int *name_len) {
 // This method will go through the RDATA and capture the name
 // that is stored at the location beggining at res[*res_i}
 // This will have to handle being redirected by pointers
-void get_name(unsigned char *res, int *res_i, unsigned int aa) {
+char* get_name(unsigned char *res, int *res_i, unsigned int aa) {
   // Set up the name we will print
   char *name = NULL;
   // starts a 0, increment as we add words
@@ -548,14 +568,7 @@ void get_name(unsigned char *res, int *res_i, unsigned int aa) {
   // Null terminate the name,
   //  which also get's rid of the extra '.' at the end
   name[name_len-1] = '\0';
-
-  // TODO Make this work for auth/nonauth
-  if (aa) {
-    printf("CNAME\t%s\tauth\n", name);
-	}
-	else {
-    printf("CNAME\t%s\tnonauth\n", name);
-	}
+  return name;
 }
 
 // Check if the questions in the request and the response packets match.
